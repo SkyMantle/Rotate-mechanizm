@@ -163,7 +163,7 @@
 	<script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
 
 	<script>
-		// === MQTT Connection to HiveMQ Cloud ===
+		// === MQTT Connection ===
 		const mqttClient = mqtt.connect('wss://940d7f06dbf1455c841afb26f9c5cf1c.s1.eu.hivemq.cloud:8884/mqtt', {
 			username: 'Werden',
 			password: 'Sec@#21Werden',
@@ -175,6 +175,10 @@
 			mqttClient.subscribe('Werden/status')
 		})
 
+		// === Dragging state ===
+		let isDragging = false
+
+		// === Incoming status handler ===
 		mqttClient.on('message', (topic, payload) => {
 			if (topic === 'Werden/status') {
 				try {
@@ -182,15 +186,20 @@
 					const raw = data.raw || 2047
 					const deg = Math.round((raw - 2047) * 360 / 4095)
 
+					// Update text info always
 					document.getElementById("STSValue").innerHTML =
 						`ID: ${data.id} | Raw: ${raw} | ${deg}°<br>` +
 						`Нап: ${data.volt.toFixed(1)}V | Нав: ${data.load}% | Швид: ${data.speed}<br>` +
 						`Темп: ${data.temp}°C | Вст.швид: ${data.set_speed}`
 
-					document.getElementById("position-slider").value = raw
-					document.getElementById("position-input").value = raw
 					document.getElementById("current-pos").textContent = 'Поточна позиція: ' + deg + '°'
 					updateMapDirection(deg)
+
+					// === ONLY update slider if user is NOT dragging ===
+					if (!isDragging) {
+						document.getElementById("position-slider").value = raw
+						document.getElementById("position-input").value = raw
+					}
 				} catch (e) {
 					console.error("JSON parse error:", e)
 				}
@@ -210,11 +219,26 @@
 			mqttClient.publish('Werden/command/jog_' + dir, state)
 		}
 
-		// Slider control
+		// === Slider with smooth no-bounce behavior ===
 		let lastSendTime = 0
 		const throttleTime = 80
 
-		document.getElementById('position-slider').addEventListener('input', function () {
+		const slider = document.getElementById('position-slider')
+
+		slider.addEventListener('touchstart', () => isDragging = true)
+		slider.addEventListener('mousedown', () => isDragging = true)
+
+		slider.addEventListener('touchend', () => {
+			isDragging = false
+			// Optional: send final position on release
+			sendPosition(slider.value)
+		})
+		slider.addEventListener('mouseup', () => {
+			isDragging = false
+			sendPosition(slider.value)
+		})
+
+		slider.addEventListener('input', function () {
 			const now = Date.now()
 			if (now - lastSendTime > throttleTime) {
 				const pos = parseInt(this.value)
@@ -222,19 +246,24 @@
 				document.getElementById("position-input").value = pos
 				lastSendTime = now
 			}
+
+			// During drag: update degree display live from slider (feels instant)
+			const deg = Math.round((this.value - 2047) * 360 / 4095)
+			document.getElementById("current-pos").textContent = 'Поточна позиція: ' + deg + '°'
 		})
 
+		// Number input
 		document.getElementById('position-input').addEventListener('change', function () {
 			let pos = Math.max(0, Math.min(4095, parseInt(this.value || 2047)))
 			document.getElementById("position-slider").value = pos
 			sendPosition(pos)
 		})
 
-		// === Map ===
+		// === Map (unchanged) ===
 		let map, marker, arrow
 		function initMap() {
 			const lat = 48.904339, lng = 37.605560
-			map = L.map('map').setView([lat, lng], 10)
+			map = L.map('map').setView([lat, lng], 16)
 			L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
 				attribution: '&copy; OpenStreetMap contributors'
 			}).addTo(map)
@@ -247,7 +276,7 @@
 		function updateMapDirection(deg) {
 			if (!map || !marker) return
 			const center = marker.getLatLng()
-			const distance = 0.18 // ~18 km arrow
+			const distance = 0.0018 // ~180 meters – good visible length
 			const rad = deg * Math.PI / 180
 			const dLat = distance * Math.cos(rad)
 			const dLng = distance * Math.sin(rad) / Math.cos(center.lat * Math.PI / 180)
@@ -256,7 +285,7 @@
 			arrow.setLatLngs([[center.lat, center.lng], [endLat, endLng]])
 		}
 
-		window.onload = initMap;
+		window.onload = initMap
 	</script>
 </body>
 
