@@ -263,7 +263,7 @@
 		let map, marker, arrow
 		function initMap() {
 			const lat = 48.904339, lng = 37.605560
-			map = L.map('map').setView([lat, lng], 1)
+			map = L.map('map').setView([lat, lng], 10)
 			L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
 				attribution: '&copy; OpenStreetMap contributors'
 			}).addTo(map)
