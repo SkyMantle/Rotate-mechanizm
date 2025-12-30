@@ -263,7 +263,7 @@
 		let map, marker, arrow
 		function initMap() {
 			const lat = 48.904339, lng = 37.605560
-			map = L.map('map').setView([lat, lng], 16)
+			map = L.map('map').setView([lat, lng], 1)
 			L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
 				attribution: '&copy; OpenStreetMap contributors'
 			}).addTo(map)
@@ -276,7 +276,7 @@
 		function updateMapDirection(deg) {
 			if (!map || !marker) return
 			const center = marker.getLatLng()
-			const distance = 0.0018 // ~180 meters – good visible length
+			const distance = 0.18 // ~180 meters – good visible length
 			const rad = deg * Math.PI / 180
 			const dLat = distance * Math.cos(rad)
 			const dLng = distance * Math.sin(rad) / Math.cos(center.lat * Math.PI / 180)
