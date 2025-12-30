@@ -2,55 +2,128 @@
 <html>
 
 <head>
-	<title>Польовик</title>
+	<title>Польовик Remote Control</title>
 	<meta charset="UTF-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<link rel="icon" href="data:,">
 	<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-	<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-	<script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script> <!-- MQTT over WebSocket -->
 	<style>
-		/* Paste all your original CSS from WEBPAGE.h here */
-		/* (same styles for buttons, slider, map, etc.) */
+		/* === Your original beautiful CSS – unchanged === */
 		html {
 			font-family: Arial;
-			background: #000;
+			display: inline-block;
+			background: #000000;
 			color: #efefef;
 			text-align: center;
 		}
 
 		body {
 			max-width: 600px;
-			margin: 0 auto;
+			margin: 0px auto;
 			padding-bottom: 25px;
 		}
 
+		.buttonContainer {
+			display: flex;
+			flex-wrap: wrap;
+			justify-content: center;
+			align-content: space-around;
+			align-items: center;
+			margin-top: 15px;
+		}
+
 		button {
-			width: 100px;
-			height: 60px;
-			font-size: 21px;
-			background: #4247b7;
-			color: white;
-			border-radius: 5px;
+			display: inline-block;
 			margin: 5px;
+			padding: 10px 10px;
+			border: 0;
+			line-height: 21px;
+			cursor: pointer;
+			color: #fff;
+			background: #4247b7;
+			border-radius: 5px;
+			font-size: 21px;
+			outline: 0;
+			width: 50px;
+			-webkit-touch-callout: none;
+			-webkit-user-select: none;
+			-khtml-user-select: none;
+			-moz-user-select: none;
+			-ms-user-select: none;
+			user-select: none;
 		}
 
 		button:hover {
 			background: #ff494d;
 		}
 
+		button:active {
+			background: #f21c21;
+		}
+
+		.StsValue {
+			display: inline-flex;
+			font-size: 15px;
+			align-items: center;
+		}
+
+		#slider-container {
+			margin: 20px auto;
+			width: 80%;
+		}
+
 		#position-slider {
 			width: 100%;
 			height: 40px;
-			background: linear-gradient(to right, #333, #4247b7, #333);
+			background: linear-gradient(to right, #333 0%, #4247b7 50%, #333 100%);
+			appearance: none;
 			border-radius: 20px;
+			outline: none;
+			transition: background 0.3s ease;
 		}
 
 		#position-slider::-webkit-slider-thumb {
+			appearance: none;
 			width: 50px;
 			height: 50px;
 			background: #ff494d;
-			border: 4px solid white;
+			cursor: pointer;
 			border-radius: 50%;
+			border: 4px solid #fff;
+			box-shadow: 0 0 10px rgba(255, 73, 77, 0.6);
+			transition: transform 0.2s ease, box-shadow 0.2s ease;
+		}
+
+		#position-slider::-webkit-slider-thumb:hover {
+			transform: scale(1.2);
+			box-shadow: 0 0 20px rgba(255, 73, 77, 0.8);
+		}
+
+		#position-slider::-moz-range-thumb {
+			width: 50px;
+			height: 50px;
+			background: #ff494d;
+			cursor: pointer;
+			border-radius: 50%;
+			border: 4px solid #fff;
+			box-shadow: 0 0 10px rgba(255, 73, 77, 0.6);
+		}
+
+		#position-input {
+			width: 80px;
+			font-size: 20px;
+			background: #333;
+			color: #efefef;
+			border: 1px solid #4247b7;
+			border-radius: 5px;
+			margin: 10px;
+			padding: 5px;
+			display: none;
+		}
+
+		#current-pos {
+			font-size: 24px;
+			margin-top: 10px;
 		}
 
 		#map {
@@ -60,104 +133,126 @@
 			border: 3px solid #4247b7;
 			border-radius: 10px;
 		}
-
-		/* ... add the rest of your CSS ... */
 	</style>
 </head>
 
 <body>
-	<h3>Польовик Remote</h3>
-	<div id="STSValue">Connecting...</div>
-	<p>
-		<button onmousedown="sendJog('minus', 'start')" onmouseup="sendJog('minus', 'stop')"
-			ontouchstart="sendJog('minus', 'start')" ontouchend="sendJog('minus', 'stop')">&lt;-</button>
-		<button onclick="sendCommand('center')">Центр</button>
-		<button onmousedown="sendJog('plus', 'start')" onmouseup="sendJog('plus', 'stop')"
-			ontouchstart="sendJog('plus', 'start')" ontouchend="sendJog('plus', 'stop')">-&gt;</button>
-	</p>
-	<p>
-		<button onclick="sendCommand('speed_plus')">Speed+</button>
-		<button onclick="sendCommand('speed_minus')">Speed-</button>
-	</p>
+	<h3>Польовик</h3>
+	<div class="StsValue" id="STSValue">Connecting to MQTT...</div>
+
+	<div class="buttonContainer">
+		<button onmousedown="sendJog('minus','start')" ontouchstart="sendJog('minus','start')"
+			onmouseup="sendJog('minus','stop')" ontouchend="sendJog('minus','stop')">&lt;</button>
+		<button onclick="sendCommand('center')">0°</button>
+		<button onmousedown="sendJog('plus','start')" ontouchstart="sendJog('plus','start')"
+			onmouseup="sendJog('plus','stop')" ontouchend="sendJog('plus','stop')">&gt;</button>
+		<button onclick="sendCommand('speed_plus')">+</button>
+		<button onclick="sendCommand('speed_minus')">-</button>
+	</div>
+
 	<div id="slider-container">
-		<input type="range" id="position-slider" min="0" max="4095" value="2047">
+		<input type="range" id="position-slider" min="0" max="4095" value="2047" step="any">
 	</div>
 	<input type="number" id="position-input" min="0" max="4095" value="2047">
 	<p id="current-pos">Поточна позиція: 0°</p>
+
 	<div id="map"></div>
 
+	<!-- Leaflet + MQTT over WebSocket -->
+	<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+	<script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+
 	<script>
-		// === MQTT Connection ===
-		const client = mqtt.connect('wss://940d7f06dbf1455c841afb26f9c5cf1c.s1.eu.hivemq.cloud:8884/mqtt', {
+		// === MQTT Connection to HiveMQ Cloud ===
+		const mqttClient = mqtt.connect('wss://940d7f06dbf1455c841afb26f9c5cf1c.s1.eu.hivemq.cloud:8884/mqtt', {
 			username: 'Werden',
-			password: 'Sec@#21Werden'
+			password: 'Sec@#21Werden',
+			clientId: 'web_client_' + Math.random().toString(16).substr(2, 8)
 		})
 
-		client.on('connect', () => {
-			document.getElementById("STSValue").innerHTML = "MQTT Connected!"
-			client.subscribe('Werden/status')
+		mqttClient.on('connect', () => {
+			document.getElementById("STSValue").innerHTML = "MQTT Connected – Ready!"
+			mqttClient.subscribe('Werden/status')
 		})
 
-		client.on('message', (topic, message) => {
+		mqttClient.on('message', (topic, payload) => {
 			if (topic === 'Werden/status') {
-				const data = JSON.parse(message.toString())
-				const raw = data.raw || 2047
-				const deg = Math.round((raw - 2047) * 360 / 4095)
+				try {
+					const data = JSON.parse(payload.toString())
+					const raw = data.raw || 2047
+					const deg = Math.round((raw - 2047) * 360 / 4095)
 
-				document.getElementById("STSValue").innerHTML =
-					`ID: ${data.id} | Raw: ${raw} | ${deg}°<br>` +
-					`Нап: ${data.volt}V | Нав: ${data.load}% | Швид: ${data.speed}<br>` +
-					`Темп: ${data.temp}°C | Вст.швид: ${data.set_speed}`
+					document.getElementById("STSValue").innerHTML =
+						`ID: ${data.id} | Raw: ${raw} | ${deg}°<br>` +
+						`Нап: ${data.volt.toFixed(1)}V | Нав: ${data.load}% | Швид: ${data.speed}<br>` +
+						`Темп: ${data.temp}°C | Вст.швид: ${data.set_speed}`
 
-				document.getElementById("position-slider").value = raw
-				document.getElementById("position-input").value = raw
-				document.getElementById("current-pos").textContent = `Поточна позиція: ${deg}°`
-				updateMapDirection(deg)
+					document.getElementById("position-slider").value = raw
+					document.getElementById("position-input").value = raw
+					document.getElementById("current-pos").textContent = 'Поточна позиція: ' + deg + '°'
+					updateMapDirection(deg)
+				} catch (e) {
+					console.error("JSON parse error:", e)
+				}
 			}
 		})
 
-		// === Commands ===
+		// === Command Functions ===
 		function sendPosition(pos) {
-			client.publish('Werden/command/position', pos.toString())
+			mqttClient.publish('Werden/command/position', pos.toString())
 		}
 
 		function sendCommand(cmd) {
-			client.publish('Werden/command/' + cmd, 'go')
+			mqttClient.publish('Werden/command/' + cmd, 'go')
 		}
 
 		function sendJog(dir, state) {
-			client.publish('Werden/command/jog_' + dir, state)
+			mqttClient.publish('Werden/command/jog_' + dir, state)
 		}
 
-		// Slider
+		// Slider control
+		let lastSendTime = 0
+		const throttleTime = 80
+
 		document.getElementById('position-slider').addEventListener('input', function () {
-			sendPosition(this.value)
-			document.getElementById("position-input").value = this.value
+			const now = Date.now()
+			if (now - lastSendTime > throttleTime) {
+				const pos = parseInt(this.value)
+				sendPosition(pos)
+				document.getElementById("position-input").value = pos
+				lastSendTime = now
+			}
 		})
 
 		document.getElementById('position-input').addEventListener('change', function () {
-			let val = Math.max(0, Math.min(4095, parseInt(this.value)))
-			document.getElementById("position-slider").value = val
-			sendPosition(val)
+			let pos = Math.max(0, Math.min(4095, parseInt(this.value || 2047)))
+			document.getElementById("position-slider").value = pos
+			sendPosition(pos)
 		})
 
 		// === Map ===
 		let map, marker, arrow
 		function initMap() {
 			const lat = 48.904339, lng = 37.605560
-			map = L.map('map').setView([lat, lng], 16)
-			L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map)
+			map = L.map('map').setView([lat, lng], 10)
+			L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+				attribution: '&copy; OpenStreetMap contributors'
+			}).addTo(map)
+
 			marker = L.marker([lat, lng]).addTo(map).bindPopup('Польовик').openPopup()
-			arrow = L.polyline([], { color: 'red', weight: 8 }).addTo(map)
+			arrow = L.polyline([], { color: 'red', weight: 8, opacity: 0.8 }).addTo(map)
 			updateMapDirection(0)
 		}
 
 		function updateMapDirection(deg) {
+			if (!map || !marker) return
 			const center = marker.getLatLng()
-			const distance = 0.001
+			const distance = 0.18 // ~18 km arrow
 			const rad = deg * Math.PI / 180
-			const endLat = center.lat + distance * Math.cos(rad)
-			const endLng = center.lng + distance * Math.sin(rad) / Math.cos(center.lat * Math.PI / 180)
+			const dLat = distance * Math.cos(rad)
+			const dLng = distance * Math.sin(rad) / Math.cos(center.lat * Math.PI / 180)
+			const endLat = center.lat + dLat
+			const endLng = center.lng + dLng
 			arrow.setLatLngs([[center.lat, center.lng], [endLat, endLng]])
 		}
 
