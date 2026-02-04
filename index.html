@@ -168,6 +168,7 @@ const char index_html[] PROGMEM = R"rawliteral(
 			right: 20px;
 			padding: 10px 20px;
 			background: #d32f2f;
+			font-size: 16px;
 		}
 	</style>
 </head>
@@ -180,8 +181,10 @@ const char index_html[] PROGMEM = R"rawliteral(
 
 	<div id="loginScreen">
 		<h2>Польовик – Авторизація</h2>
-		<input type="text" id="username" placeholder="Ім'я користувача (admin)" autocomplete="off">
-		<input type="password" id="password" placeholder="Пароль" autocomplete="off">
+		<input type="text" id="username" placeholder="Ім'я користувача пристрою (admin)" autocomplete="off">
+		<input type="password" id="password" placeholder="Пароль пристрою" autocomplete="off">
+		<input type="text" id="mqttUser" placeholder="MQTT Username (наприклад web-guest)" autocomplete="off">
+		<input type="password" id="mqttPass" placeholder="MQTT Password" autocomplete="off">
 		<button id="loginBtn" onclick="tryLogin()">Увійти</button>
 		<div id="loginError"></div>
 	</div>
@@ -219,101 +222,108 @@ const char index_html[] PROGMEM = R"rawliteral(
 		const MQTT_BROKER = 'wss://940d7f06dbf1455c841afb26f9c5cf1c.s1.eu.hivemq.cloud:8884/mqtt'
 		const CLIENT_ID = 'web-client-' + Math.random().toString(16).substr(2, 8)
 
-		// IMPORTANT: Use your REAL HiveMQ credentials here
-		const MQTT_USERNAME = "Werden"
-		const MQTT_PASSWORD = "Sec@#21Werden"
-
 		let authToken = localStorage.getItem('servoAuthToken') || ''
 		let mqttConnected = false
+		let mqttClient = null
 
-		let mqttClient = mqtt.connect(MQTT_BROKER, {
-			clientId: CLIENT_ID,
-			username: MQTT_USERNAME,
-			password: MQTT_PASSWORD,
-			clean: true,
-			reconnectPeriod: 5000
-		})
+		// ── Connect to MQTT with user-provided credentials ──────────
+		function connectMQTT(mqttUser, mqttPass) {
+			mqttClient = mqtt.connect(MQTT_BROKER, {
+				clientId: CLIENT_ID,
+				username: mqttUser,
+				password: mqttPass,
+				clean: true,
+				reconnectPeriod: 5000
+			})
 
-		mqttClient.on('connect', () => {
-			mqttConnected = true
-			console.log('MQTT connected from browser')
-			document.getElementById('loginError').textContent = 'Підключено до сервера'
+			mqttClient.on('connect', () => {
+				mqttConnected = true
+				console.log('MQTT connected with user credentials')
+				document.getElementById('loginError').textContent = 'Підключено до сервера'
 
-			mqttClient.subscribe('Werden/auth/response/' + CLIENT_ID)
-			mqttClient.subscribe('Werden/status')
-		})
+				mqttClient.subscribe('Werden/auth/response/' + CLIENT_ID)
+				mqttClient.subscribe('Werden/status')
+			})
 
-		mqttClient.on('message', (topic, message) => {
-			const payload = message.toString()
-			console.log('MQTT:', topic, payload)
+			mqttClient.on('message', (topic, message) => {
+				const payload = message.toString()
+				console.log('MQTT:', topic, payload)
 
-			if (topic === 'Werden/auth/response/' + CLIENT_ID) {
-				try {
-					const data = JSON.parse(payload)
-					if (data.status === 'success') {
-						authToken = data.token
-						localStorage.setItem('servoAuthToken', authToken)
-						document.getElementById('loginScreen').style.display = 'none'
-						document.getElementById('mainContent').style.display = 'block'
-						document.getElementById('loginError').textContent = ''
-					} else {
-						document.getElementById('loginError').textContent = data.reason || 'Помилка авторизації'
+				if (topic === 'Werden/auth/response/' + CLIENT_ID) {
+					try {
+						const data = JSON.parse(payload)
+						if (data.status === 'success') {
+							authToken = data.token
+							localStorage.setItem('servoAuthToken', authToken)
+							document.getElementById('loginScreen').style.display = 'none'
+							document.getElementById('mainContent').style.display = 'block'
+							document.getElementById('loginError').textContent = ''
+						} else {
+							document.getElementById('loginError').textContent = data.reason || 'Помилка авторизації'
+						}
+					} catch (e) {
+						document.getElementById('loginError').textContent = 'Неправильна відповідь сервера'
 					}
-				} catch (e) {
-					document.getElementById('loginError').textContent = 'Неправильна відповідь сервера'
 				}
-			}
 
-			if (topic === 'Werden/status') {
-				try {
-					const data = JSON.parse(payload)
-					document.getElementById("STSValue").innerHTML =
-						`ID: ${data.id} | Raw: ${data.raw} | ${data.deg}° | Нап: ${data.volt}V | Нав: ${data.load}% | Швид: ${data.speed} | Темп: ${data.temp}°C | Вст.швид: ${data.set_speed}`
-					document.getElementById("position-slider").value = data.raw
-					document.getElementById("current-pos").textContent = `Поточна позиція: ${data.deg}°`
-					updateMapDirection(data.deg)
-				} catch (e) {
-					console.error('Invalid status JSON')
+				if (topic === 'Werden/status') {
+					try {
+						const data = JSON.parse(payload)
+						document.getElementById("STSValue").innerHTML =
+							`ID: ${data.id} | Raw: ${data.raw} | ${data.deg}° | Нап: ${data.volt}V | Нав: ${data.load}% | Швид: ${data.speed} | Темп: ${data.temp}°C | Вст.швид: ${data.set_speed}`
+						document.getElementById("position-slider").value = data.raw
+						document.getElementById("current-pos").textContent = `Поточна позиція: ${data.deg}°`
+						updateMapDirection(data.deg)
+					} catch (e) { }
 				}
-			}
-		})
+			})
 
-		mqttClient.on('error', (err) => {
-			console.error('MQTT error:', err)
-			document.getElementById('loginError').textContent = 'Помилка підключення до MQTT сервера'
-		})
+			mqttClient.on('error', (err) => {
+				console.error('MQTT error:', err)
+				document.getElementById('loginError').textContent = 'Помилка підключення до MQTT сервера'
+			})
+		}
 
-		// ── Login via MQTT ────────────────────────────────────────────
+		// ── Login process ─────────────────────────────────────────────
 		function tryLogin() {
 			const user = document.getElementById('username').value.trim()
 			const pass = document.getElementById('password').value.trim()
+			const mqttUser = document.getElementById('mqttUser').value.trim()
+			const mqttPass = document.getElementById('mqttPass').value.trim()
 			const errorEl = document.getElementById('loginError')
 
 			if (!user || !pass) {
-				errorEl.textContent = 'Введіть ім\'я та пароль'
+				errorEl.textContent = 'Введіть дані пристрою'
+				return
+			}
+			if (!mqttUser || !mqttPass) {
+				errorEl.textContent = 'Введіть MQTT username та password'
 				return
 			}
 
-			if (!mqttConnected) {
-				errorEl.textContent = 'Очікуємо підключення до сервера...'
-				return
-			}
+			errorEl.textContent = 'Підключення до сервера...'
 
-			errorEl.textContent = 'Авторизація...'
+			// Connect with provided MQTT credentials
+			connectMQTT(mqttUser, mqttPass)
 
-			const payload = JSON.stringify({
-				username: user,
-				password: pass,
-				clientId: CLIENT_ID
-			})
-
-			mqttClient.publish('Werden/auth/request', payload)
+			// Wait a bit for connection, then send auth request
+			setTimeout(() => {
+				if (mqttConnected) {
+					errorEl.textContent = 'Авторизація пристрою...'
+					const payload = JSON.stringify({
+						username: user,
+						password: pass,
+						clientId: CLIENT_ID
+					})
+					mqttClient.publish('Werden/auth/request', payload)
+				}
+			}, 2000) // give time to connect
 		}
 
 		// ── Send command via MQTT ─────────────────────────────────────
 		function sendCommand(cmdT, cmdI, cmdA = 0, cmdB = 0) {
-			if (!authToken) {
-				alert('Спочатку авторизуйтесь')
+			if (!authToken || !mqttConnected) {
+				alert('Спочатку авторизуйтесь та підключіться')
 				return
 			}
 
@@ -333,7 +343,7 @@ const char index_html[] PROGMEM = R"rawliteral(
 			sendCommand(inputT, inputI, inputA, inputB)
 		}
 
-		// ── Slider with MQTT ──────────────────────────────────────────
+		// ── Slider ────────────────────────────────────────────────────
 		document.getElementById('position-slider').addEventListener('input', function () {
 			const newPos = parseInt(this.value)
 			sendCommand(1, 22, newPos, 0)
@@ -342,6 +352,8 @@ const char index_html[] PROGMEM = R"rawliteral(
 		// ── Logout ────────────────────────────────────────────────────
 		function logout() {
 			localStorage.removeItem('servoAuthToken')
+			localStorage.removeItem('mqttUser')
+			localStorage.removeItem('mqttPass')
 			location.reload()
 		}
 
@@ -381,9 +393,15 @@ const char index_html[] PROGMEM = R"rawliteral(
 			document.getElementById("current-pos").textContent = 'Поточна позиція: 0°'
 			initMap()
 
-			if (authToken) {
-				document.getElementById('loginScreen').style.display = 'none'
-				document.getElementById('mainContent').style.display = 'block'
+			// Auto-connect with saved MQTT creds if available
+			const savedMqttUser = localStorage.getItem('mqttUser')
+			const savedMqttPass = localStorage.getItem('mqttPass')
+			if (savedMqttUser && savedMqttPass) {
+				connectMQTT(savedMqttUser, savedMqttPass)
+				if (authToken) {
+					document.getElementById('loginScreen').style.display = 'none'
+					document.getElementById('mainContent').style.display = 'block'
+				}
 			}
 		};
 	</script>
