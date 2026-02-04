@@ -138,8 +138,17 @@
 			color: white;
 		}
 
+		/* Приховуємо стрілки (спінер) для поля вводу градусів */
 		#degreeInput {
 			width: 230px;
+			-moz-appearance: textfield;
+			/* Firefox */
+		}
+
+		#degreeInput::-webkit-outer-spin-button,
+		#degreeInput::-webkit-inner-spin-button {
+			-webkit-appearance: none;
+			margin: 0;
 		}
 
 		#loginBtn {
