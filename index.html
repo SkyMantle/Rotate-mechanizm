@@ -176,7 +176,7 @@ const char index_html[] PROGMEM = R"rawliteral(
 <body>
 
 	<div id="warningBanner">
-		⚠️ Це ДЕМО-версія на GitHub. Реальне керування можливе тільки через підключення до пристрою.
+		⚠️ Знаходиться в розробці.
 	</div>
 
 	<div id="loginScreen">
@@ -362,8 +362,8 @@ const char index_html[] PROGMEM = R"rawliteral(
 
 		function initMap() {
 			map = L.map('map').setView([48.904339, 37.605560], 10)
-			L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-				attribution: '&copy; OpenStreetMap contributors'
+			L.tileLayer('https://{s}.tile.openstreetmap.de/{z}/{x}/{y}.png', {
+				attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
 			}).addTo(map)
 
 			marker = L.marker([48.904339, 37.605560]).addTo(map)
