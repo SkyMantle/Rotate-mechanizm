@@ -181,7 +181,7 @@ const char index_html[] PROGMEM = R"rawliteral(
 
 	<div id="loginScreen">
 		<h2>Польовик – Авторизація</h2>
-		<input type="text" id="username" placeholder="Ім'я користувача пристрою (admin)" autocomplete="off">
+		<input type="text" id="username" placeholder="Ім'я користувача пристрою" autocomplete="off">
 		<input type="password" id="password" placeholder="Пароль пристрою" autocomplete="off">
 		<input type="text" id="mqttUser" placeholder="MQTT Username (наприклад web-guest)" autocomplete="off">
 		<input type="password" id="mqttPass" placeholder="MQTT Password" autocomplete="off">
@@ -362,11 +362,10 @@ const char index_html[] PROGMEM = R"rawliteral(
 
 		function initMap() {
 			map = L.map('map').setView([48.904339, 37.605560], 10)
-			L.tileLayer('https://stamen-tiles-{s}.a.ssl.fastly.net/terrain/{z}/{x}/{y}{r}.png', {
-				attribution: 'Map tiles by <a href="http://stamen.com">Stamen Design</a>, <a href="http://creativecommons.org/licenses/by/3.0">CC BY 3.0</a> &mdash; Map data &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+			L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+				attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
 				subdomains: 'abcd',
-				minZoom: 0,
-				maxZoom: 20
+				maxZoom: 19
 			}).addTo(map)
 
 			marker = L.marker([48.904339, 37.605560]).addTo(map)
