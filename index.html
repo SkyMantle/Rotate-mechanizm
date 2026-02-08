@@ -8,6 +8,7 @@
 	<link rel="icon" href="data:,">
 	<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 	<style>
+		/* ── your styles unchanged ── */
 		html,
 		body {
 			margin: 0;
@@ -179,9 +180,7 @@
 
 <body>
 
-	<div id="warningBanner">
-		⚠️ Знаходиться в розробці.
-	</div>
+	<div id="warningBanner">⚠️ Знаходиться в розробці.</div>
 
 	<div id="loginScreen">
 		<h2>Польовик – Авторизація</h2>
@@ -200,12 +199,11 @@
 		<div class="buttonContainer">
 			<button onclick="switchMotor(0)">Motor 1</button>
 			<button onclick="switchMotor(1)">Motor 2</button>
-			<button id="syncBtn" onclick="toggleSync()" style="padding:12px 30px; background:#0288d1; color:white;">
-				Sync OFF
-			</button>
+			<button id="syncBtn" onclick="toggleSync()" style="padding:12px 30px; background:#0288d1; color:white;">Sync
+				OFF</button>
 			<button onmousedown="toggleCheckbox(1,6,0,0)" ontouchstart="toggleCheckbox(1,6,0,0)"
 				onmouseup="toggleCheckbox(1,2,0,0)" ontouchend="toggleCheckbox(1,2,0,0)">
-				< </button>
+				<< /button>
 					<button onclick="toggleCheckbox(1,1,0,0)">0°</button>
 					<button onmousedown="toggleCheckbox(1,5,0,0)" ontouchstart="toggleCheckbox(1,5,0,0)"
 						onmouseup="toggleCheckbox(1,2,0,0)" ontouchend="toggleCheckbox(1,2,0,0)">></button>
@@ -243,7 +241,11 @@
 		let mqttConnected = false
 		let mqttClient = null
 
-		// ── Connect to MQTT with user-provided credentials ──────────
+		// Store last known degrees for both motors
+		let lastDegMotor1 = 0
+		let lastDegMotor2 = 0
+
+		// ── Connect to MQTT ──────────
 		function connectMQTT(mqttUser, mqttPass) {
 			mqttClient = mqtt.connect(MQTT_BROKER, {
 				clientId: CLIENT_ID,
@@ -255,7 +257,7 @@
 
 			mqttClient.on('connect', () => {
 				mqttConnected = true
-				console.log('MQTT connected with user credentials')
+				console.log('MQTT connected')
 				document.getElementById('loginError').textContent = 'Підключено до сервера'
 
 				mqttClient.subscribe('Werden/auth/response/' + CLIENT_ID)
@@ -286,12 +288,26 @@
 				if (topic === 'Werden/status') {
 					try {
 						const data = JSON.parse(payload)
+
+						// Update displayed status (your original logic)
 						document.getElementById("STSValue").innerHTML =
-							`ID: ${data.id} | Raw: ${data.raw} | ${data.deg}° | Нап: ${data.volt}V | Нав: ${data.load}% | Швид: ${data.speed} | Темп: ${data.temp}°C | Вст.швид: ${data.set_speed}`
+							`ID: ${data.id} | Raw: ${data.raw} | ${data.deg}° | Нап: ${data.volt || '?'}V | Нав: ${data.load || '?'}% | Швид: ${data.speed || '?'} | Темп: ${data.temp || '?'}°C | Вст.швид: ${data.set_speed || '?'}`
 						document.getElementById("position-slider").value = data.raw
 						document.getElementById("current-pos").textContent = `Поточна позиція: ${data.deg}°`
-						updateMapDirection(data.deg)
-					} catch (e) { }
+
+						// Remember angle for this motor
+						if (data.id == 1) {
+							lastDegMotor1 = data.deg
+						} else if (data.id == 2) {
+							lastDegMotor2 = data.deg
+						}
+
+						// Update arrows: red = current (active), blue dashed = Motor 2
+						updateMapDirection(data.deg, lastDegMotor2)
+
+					} catch (e) {
+						console.error('Status parse error:', e)
+					}
 				}
 			})
 
@@ -301,7 +317,7 @@
 			})
 		}
 
-		// ── Login process ─────────────────────────────────────────────
+		// ── Login process (unchanged) ─────────────────────────────────────────────
 		function tryLogin() {
 			const user = document.getElementById('username').value.trim()
 			const pass = document.getElementById('password').value.trim()
@@ -309,14 +325,8 @@
 			const mqttPass = document.getElementById('mqttPass').value.trim()
 			const errorEl = document.getElementById('loginError')
 
-			if (!user || !pass) {
-				errorEl.textContent = 'Введіть дані пристрою'
-				return
-			}
-			if (!mqttUser || !mqttPass) {
-				errorEl.textContent = 'Введіть MQTT username та password'
-				return
-			}
+			if (!user || !pass) { errorEl.textContent = 'Введіть дані пристрою'; return }
+			if (!mqttUser || !mqttPass) { errorEl.textContent = 'Введіть MQTT username та password'; return }
 
 			errorEl.textContent = 'Підключення до сервера...'
 
@@ -335,70 +345,46 @@
 			}, 2000)
 		}
 
-		// ── Send command via MQTT ─────────────────────────────────────
+		// ── Send command (unchanged) ─────────────────────────────────────
 		function sendCommand(cmdT, cmdI, cmdA = 0, cmdB = 0) {
 			if (!authToken || !mqttConnected) {
 				alert('Спочатку авторизуйтесь та підключіться')
 				return
 			}
-
-			const payload = JSON.stringify({
-				token: authToken,
-				cmdT: cmdT,
-				cmdI: cmdI,
-				cmdA: cmdA,
-				cmdB: cmdB
-			})
-
+			const payload = JSON.stringify({ token: authToken, cmdT, cmdI, cmdA, cmdB })
 			mqttClient.publish('Werden/command', payload)
 		}
 
-		// ── Switch motor ──────────────────────────────────────────────
-		function switchMotor(index) {
-			sendCommand(10, 0, index, 0)  // cmdT=10, cmdA=index (0 or 1)
-		}
+		function switchMotor(index) { sendCommand(10, 0, index, 0) }
 
-		// ── Toggle sync ───────────────────────────────────────────────
 		let syncEnabled = false
-
 		function toggleSync() {
 			syncEnabled = !syncEnabled
 			document.getElementById('syncBtn').textContent = syncEnabled ? "Sync ON" : "Sync OFF"
 			document.getElementById('syncBtn').style.background = syncEnabled ? "#4caf50" : "#0288d1"
-
-			sendCommand(99, 0, syncEnabled ? 1 : 0, 0)  // cmdT=99, cmdA=1/0
+			sendCommand(99, 0, syncEnabled ? 1 : 0, 0)
 		}
 
-		// ── Degree input ──────────────────────────────────────────────
 		function setDegree() {
 			const degInput = document.getElementById('degreeInput')
 			let deg = parseFloat(degInput.value)
-
-			if (isNaN(deg)) {
-				alert('Введіть коректне число градусів')
-				return
-			}
-
+			if (isNaN(deg)) { alert('Введіть коректне число градусів'); return }
 			deg = Math.max(-180, Math.min(180, deg))
 			const raw = Math.round(2047 + (deg * 4095 / 360))
-
 			sendCommand(1, 22, raw, 0)
 			document.getElementById("current-pos").textContent = `Поточна позиція: ${deg}°`
 			degInput.value = ''
 		}
 
-		// ── Wrapper for toggleCheckbox ────────────────────────────────
 		function toggleCheckbox(inputT, inputI, inputA, inputB) {
 			sendCommand(inputT, inputI, inputA, inputB)
 		}
 
-		// ── Slider ────────────────────────────────────────────────────
 		document.getElementById('position-slider').addEventListener('input', function () {
 			const newPos = parseInt(this.value)
 			sendCommand(1, 22, newPos, 0)
 		})
 
-		// ── Logout ────────────────────────────────────────────────────
 		function logout() {
 			localStorage.removeItem('servoAuthToken')
 			localStorage.removeItem('mqttUser')
@@ -406,34 +392,45 @@
 			location.reload()
 		}
 
-		// ── Map init (unchanged) ──────────────────────────────────────
-		let map, marker, arrow
+		// ── Map with two arrows ──────────────────────────────────────
+		let map, marker, arrow1, arrow2
 
 		function initMap() {
 			map = L.map('map').setView([48.904339, 37.605560], 10)
 			L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
-				attribution: 'Map data: &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors, <a href="http://viewfinderpanoramas.org">SRTM</a> | Map style: &copy; <a href="https://opentopomap.org">OpenTopoMap</a> (CC-BY-SA)',
+				attribution: 'Map data: © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors, SRTM | © <a href="https://opentopomap.org">OpenTopoMap</a> (CC-BY-SA)',
 				maxZoom: 17
 			}).addTo(map)
 
 			marker = L.marker([48.904339, 37.605560]).addTo(map)
 				.bindPopup('Польовик').openPopup()
 
-			arrow = L.polyline([], { color: 'red', weight: 8, opacity: 0.8 }).addTo(map)
-			updateMapDirection(0)
+			arrow1 = L.polyline([], { color: 'red', weight: 8, opacity: 0.9 }).addTo(map)         // active motor
+			arrow2 = L.polyline([], { color: '#00aaff', weight: 6, opacity: 0.7, dashArray: '6, 6' }).addTo(map) // Motor 2
+
+			updateMapDirection(0, 0)
 		}
 
-		function updateMapDirection(deg) {
+		function updateMapDirection(degActive, degMotor2) {
 			if (!map || !marker) return
 			const center = marker.getLatLng()
 			const distance = 0.18
-			const bearing = deg
-			const rad = bearing * Math.PI / 180
-			const dLat = distance * Math.cos(rad)
-			const dLng = distance * Math.sin(rad) / Math.cos(center.lat * Math.PI / 180)
-			const endLat = center.lat + dLat
-			const endLng = center.lng + dLng
-			arrow.setLatLngs([[center.lat, center.lng], [endLat, endLng]])
+
+			// Arrow 1 – active/selected motor (red)
+			if (degActive != null && !isNaN(degActive)) {
+				const rad = degActive * Math.PI / 180
+				const dLat = distance * Math.cos(rad)
+				const dLng = distance * Math.sin(rad) / Math.cos(center.lat * Math.PI / 180)
+				arrow1.setLatLngs([[center.lat, center.lng], [center.lat + dLat, center.lng + dLng]])
+			}
+
+			// Arrow 2 – Motor 2 (blue dashed) – persists even when Motor 1 is selected
+			if (degMotor2 != null && !isNaN(degMotor2)) {
+				const rad = degMotor2 * Math.PI / 180
+				const dLat = distance * Math.cos(rad)
+				const dLng = distance * Math.sin(rad) / Math.cos(center.lat * Math.PI / 180)
+				arrow2.setLatLngs([[center.lat, center.lng], [center.lat + dLat, center.lng + dLng]])
+			}
 		}
 
 		// ── Init ──────────────────────────────────────────────────────
@@ -443,7 +440,6 @@
 			document.getElementById("current-pos").textContent = 'Поточна позиція: 0°'
 			initMap()
 
-			// Auto-connect with saved MQTT creds if available
 			const savedMqttUser = localStorage.getItem('mqttUser')
 			const savedMqttPass = localStorage.getItem('mqttPass')
 			if (savedMqttUser && savedMqttPass) {
