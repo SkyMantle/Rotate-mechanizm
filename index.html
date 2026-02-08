@@ -204,9 +204,11 @@
 		<div class="StsValue" id="STSValue">Очікування даних сервоприводу...</div>
 
 		<div class="buttonContainer">
+			<button onclick="switchMotor(0)">Motor 1</button>
+			<button onclick="switchMotor(1)">Motor 2</button>
 			<button onmousedown="toggleCheckbox(1,6,0,0)" ontouchstart="toggleCheckbox(1,6,0,0)"
 				onmouseup="toggleCheckbox(1,2,0,0)" ontouchend="toggleCheckbox(1,2,0,0)">
-				< </button>
+				<< /button>
 					<button onclick="toggleCheckbox(1,1,0,0)">0°</button>
 					<button onmousedown="toggleCheckbox(1,5,0,0)" ontouchstart="toggleCheckbox(1,5,0,0)"
 						onmouseup="toggleCheckbox(1,2,0,0)" ontouchend="toggleCheckbox(1,2,0,0)">></button>
@@ -451,7 +453,12 @@
 					document.getElementById('mainContent').style.display = 'block'
 				}
 			}
-		};
+		}
+
+		function switchMotor(motorIndex) {
+			sendCommand(10, 0, motorIndex, 0)  // cmdT=10 for switch, cmdA = index (0 or 1)
+		}
+
 	</script>
 </body>
 
