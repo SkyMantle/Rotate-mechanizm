@@ -8,7 +8,6 @@
 	<link rel="icon" href="data:,">
 	<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 	<style>
-		/* ── your styles unchanged ── */
 		html,
 		body {
 			margin: 0;
@@ -175,11 +174,22 @@
 			background: #d32f2f;
 			font-size: 16px;
 		}
+
+		/* ── New glow styles for selected motor arrow ── */
+		.glow {
+			filter: drop-shadow(0 0 8px currentColor);
+			opacity: 1 !important;
+		}
+
+		.dim {
+			opacity: 0.5;
+		}
 	</style>
 </head>
 
 <body>
 
+	<!-- HTML unchanged except for map div classes -->
 	<div id="warningBanner">⚠️ Знаходиться в розробці.</div>
 
 	<div id="loginScreen">
@@ -241,9 +251,12 @@
 		let mqttConnected = false
 		let mqttClient = null
 
-		// Store last known degrees for both motors
+		// Store last known degrees
 		let lastDegMotor1 = 0
 		let lastDegMotor2 = 0
+
+		// Current selected motor (0 = Motor 1, 1 = Motor 2)
+		let selectedMotor = 0
 
 		// ── Connect to MQTT ──────────
 		function connectMQTT(mqttUser, mqttPass) {
@@ -277,6 +290,8 @@
 							document.getElementById('loginScreen').style.display = 'none'
 							document.getElementById('mainContent').style.display = 'block'
 							document.getElementById('loginError').textContent = ''
+							// After successful login — highlight the default motor (Motor 1)
+							updateMotorSelection(0)
 						} else {
 							document.getElementById('loginError').textContent = data.reason || 'Помилка авторизації'
 						}
@@ -289,21 +304,25 @@
 					try {
 						const data = JSON.parse(payload)
 
-						// Update displayed status (your original logic)
+						// Update displayed status
 						document.getElementById("STSValue").innerHTML =
 							`ID: ${data.id} | Raw: ${data.raw} | ${data.deg}° | Нап: ${data.volt || '?'}V | Нав: ${data.load || '?'}% | Швид: ${data.speed || '?'} | Темп: ${data.temp || '?'}°C | Вст.швид: ${data.set_speed || '?'}`
 						document.getElementById("position-slider").value = data.raw
 						document.getElementById("current-pos").textContent = `Поточна позиція: ${data.deg}°`
 
-						// Remember angle for this motor
+						// Remember angle
 						if (data.id == 1) {
 							lastDegMotor1 = data.deg
 						} else if (data.id == 2) {
 							lastDegMotor2 = data.deg
 						}
 
-						// Update arrows: red = current (active), blue dashed = Motor 2
-						updateMapDirection(data.deg, lastDegMotor2)
+						// Update arrows
+						// Active (selected) motor uses current value, Motor 2 always uses remembered value
+						let activeDeg = data.deg
+						let motor2Deg = lastDegMotor2
+
+						updateMapDirection(activeDeg, motor2Deg)
 
 					} catch (e) {
 						console.error('Status parse error:', e)
@@ -317,32 +336,23 @@
 			})
 		}
 
-		// ── Login process (unchanged) ─────────────────────────────────────────────
-		function tryLogin() {
-			const user = document.getElementById('username').value.trim()
-			const pass = document.getElementById('password').value.trim()
-			const mqttUser = document.getElementById('mqttUser').value.trim()
-			const mqttPass = document.getElementById('mqttPass').value.trim()
-			const errorEl = document.getElementById('loginError')
+		// ── Highlight selected motor's arrow ────────────────────────────────
+		function updateMotorSelection(index) {
+			selectedMotor = index
 
-			if (!user || !pass) { errorEl.textContent = 'Введіть дані пристрою'; return }
-			if (!mqttUser || !mqttPass) { errorEl.textContent = 'Введіть MQTT username та password'; return }
-
-			errorEl.textContent = 'Підключення до сервера...'
-
-			connectMQTT(mqttUser, mqttPass)
-
-			setTimeout(() => {
-				if (mqttConnected) {
-					errorEl.textContent = 'Авторизація пристрою...'
-					const payload = JSON.stringify({
-						username: user,
-						password: pass,
-						clientId: CLIENT_ID
-					})
-					mqttClient.publish('Werden/auth/request', payload)
-				}
-			}, 2000)
+			if (index === 0) {
+				// Motor 1 selected → red glows, blue dims
+				arrow1._path.classList.add('glow')
+				arrow1._path.classList.remove('dim')
+				arrow2._path.classList.add('dim')
+				arrow2._path.classList.remove('glow')
+			} else {
+				// Motor 2 selected → blue glows, red dims
+				arrow2._path.classList.add('glow')
+				arrow2._path.classList.remove('dim')
+				arrow1._path.classList.add('dim')
+				arrow1._path.classList.remove('glow')
+			}
 		}
 
 		// ── Send command (unchanged) ─────────────────────────────────────
@@ -355,7 +365,10 @@
 			mqttClient.publish('Werden/command', payload)
 		}
 
-		function switchMotor(index) { sendCommand(10, 0, index, 0) }
+		function switchMotor(index) {
+			sendCommand(10, 0, index, 0)
+			updateMotorSelection(index)          // ← highlight the selected arrow
+		}
 
 		let syncEnabled = false
 		function toggleSync() {
@@ -365,6 +378,7 @@
 			sendCommand(99, 0, syncEnabled ? 1 : 0, 0)
 		}
 
+		// ── Degree, toggleCheckbox, slider, logout ── unchanged ──────────────
 		function setDegree() {
 			const degInput = document.getElementById('degreeInput')
 			let deg = parseFloat(degInput.value)
@@ -392,7 +406,7 @@
 			location.reload()
 		}
 
-		// ── Map with two arrows ──────────────────────────────────────
+		// ── Map ───────────────────────────────────────────────────────────────
 		let map, marker, arrow1, arrow2
 
 		function initMap() {
@@ -405,8 +419,18 @@
 			marker = L.marker([48.904339, 37.605560]).addTo(map)
 				.bindPopup('Польовик').openPopup()
 
-			arrow1 = L.polyline([], { color: 'red', weight: 8, opacity: 0.9 }).addTo(map)         // active motor
-			arrow2 = L.polyline([], { color: '#00aaff', weight: 6, opacity: 0.7, dashArray: '6, 6' }).addTo(map) // Motor 2
+			arrow1 = L.polyline([], {
+				color: 'red',
+				weight: 8,
+				opacity: 0.9
+			}).addTo(map)
+
+			arrow2 = L.polyline([], {
+				color: '#00aaff',
+				weight: 6,
+				opacity: 0.7,
+				dashArray: '6, 6'
+			}).addTo(map)
 
 			updateMapDirection(0, 0)
 		}
@@ -416,7 +440,7 @@
 			const center = marker.getLatLng()
 			const distance = 0.18
 
-			// Arrow 1 – active/selected motor (red)
+			// Red – active/selected motor
 			if (degActive != null && !isNaN(degActive)) {
 				const rad = degActive * Math.PI / 180
 				const dLat = distance * Math.cos(rad)
@@ -424,7 +448,7 @@
 				arrow1.setLatLngs([[center.lat, center.lng], [center.lat + dLat, center.lng + dLng]])
 			}
 
-			// Arrow 2 – Motor 2 (blue dashed) – persists even when Motor 1 is selected
+			// Blue dashed – Motor 2 (always visible)
 			if (degMotor2 != null && !isNaN(degMotor2)) {
 				const rad = degMotor2 * Math.PI / 180
 				const dLat = distance * Math.cos(rad)
@@ -433,7 +457,7 @@
 			}
 		}
 
-		// ── Init ──────────────────────────────────────────────────────
+		// ── Init ──────────────────────────────────────────────────────────────
 		window.onload = function () {
 			document.getElementById("position-slider").value = 2047
 			document.getElementById("position-input").value = 2047
@@ -447,6 +471,8 @@
 				if (authToken) {
 					document.getElementById('loginScreen').style.display = 'none'
 					document.getElementById('mainContent').style.display = 'block'
+					// After login – set default selection (Motor 1)
+					updateMotorSelection(0)
 				}
 			}
 		};
