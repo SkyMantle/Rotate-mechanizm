@@ -206,6 +206,9 @@
 		<div class="buttonContainer">
 			<button onclick="switchMotor(0)">Motor 1</button>
 			<button onclick="switchMotor(1)">Motor 2</button>
+			<button id="syncBtn" onclick="toggleSync()" style="padding:12px 30px; background:#0288d1; color:white;">
+				Sync OFF
+			</button>
 			<button onmousedown="toggleCheckbox(1,6,0,0)" ontouchstart="toggleCheckbox(1,6,0,0)"
 				onmouseup="toggleCheckbox(1,2,0,0)" ontouchend="toggleCheckbox(1,2,0,0)">
 				< </button>
@@ -459,6 +462,21 @@
 			sendCommand(10, 0, motorIndex, 0)  // cmdT=10 for switch, cmdA = index (0 or 1)
 		}
 
+		let syncEnabled = false
+
+		function toggleSync() {
+			syncEnabled = !syncEnabled
+			document.getElementById('syncBtn').textContent = syncEnabled ? "Sync ON" : "Sync OFF"
+			document.getElementById('syncBtn').style.background = syncEnabled ? "#4caf50" : "#0288d1"
+
+			// Send toggle via MQTT
+			const payload = JSON.stringify({
+				token: authToken,
+				cmdT: 99,
+				cmdA: syncEnabled ? 1 : 0
+			})
+			mqttClient.publish('Werden/command', payload)
+		}
 	</script>
 </body>
 
