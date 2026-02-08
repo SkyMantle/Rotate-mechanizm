@@ -81,6 +81,14 @@
 			background: #d32f2f;
 		}
 
+		#syncBtn {
+			background: #0288d1;
+		}
+
+		#syncBtn.on {
+			background: #4caf50;
+		}
+
 		#slider-container {
 			margin: 25px 0;
 			text-align: center;
@@ -126,8 +134,7 @@
 		}
 
 		input[type="text"],
-		input[type="password"],
-		input[type="number"] {
+		input[type="password"] {
 			width: 300px;
 			padding: 14px;
 			margin: 12px;
@@ -136,19 +143,6 @@
 			border: 1px solid #555;
 			background: #222;
 			color: white;
-		}
-
-		/* Приховуємо стрілки (спінер) для поля вводу градусів */
-		#degreeInput {
-			width: 230px;
-			-moz-appearance: textfield;
-			/* Firefox */
-		}
-
-		#degreeInput::-webkit-outer-spin-button,
-		#degreeInput::-webkit-inner-spin-button {
-			-webkit-appearance: none;
-			margin: 0;
 		}
 
 		#loginBtn {
@@ -226,11 +220,11 @@
 		<p id="current-pos">Поточна позиція: 0°</p>
 
 		<div style="margin:25px 0; text-align:center;">
-			<input type="number" id="degreeInput" min="-50" max="50" step="0.1" placeholder=""
-				title="Введіть градуси (-50..50)"
+			<input type="number" id="degreeInput" min="-180" max="180" step="0.1" placeholder=""
+				title="Введіть градуси (-180..180)"
 				style="width:230px; padding:12px; font-size:18px; border-radius:8px; border:1px solid #555; background:#222; color:white;">
 			<button onclick="setDegree()"
-				style="padding:12px 30px; margin-left:12px; font-size:18px; background:#ff4444;">Змінити градус</button>
+				style="padding:12px 30px; margin-left:12px; font-size:18px; background:#ff4444;">Перейти до градуса</button>
 		</div>
 
 		<div id="map"></div>
@@ -326,10 +320,8 @@
 
 			errorEl.textContent = 'Підключення до сервера...'
 
-			// Connect with provided MQTT credentials
 			connectMQTT(mqttUser, mqttPass)
 
-			// Wait a bit for connection, then send auth request
 			setTimeout(() => {
 				if (mqttConnected) {
 					errorEl.textContent = 'Авторизація пристрою...'
@@ -340,7 +332,7 @@
 					})
 					mqttClient.publish('Werden/auth/request', payload)
 				}
-			}, 2000) // give time to connect
+			}, 2000)
 		}
 
 		// ── Send command via MQTT ─────────────────────────────────────
@@ -361,6 +353,23 @@
 			mqttClient.publish('Werden/command', payload)
 		}
 
+		// ── Switch motor ──────────────────────────────────────────────
+		function switchMotor(index) {
+			sendCommand(10, 0, index, 0)  // cmdT=10, cmdA=index (0 or 1)
+		}
+
+		// ── Toggle sync ───────────────────────────────────────────────
+		let syncEnabled = false
+
+		function toggleSync() {
+			syncEnabled = !syncEnabled
+			document.getElementById('syncBtn').textContent = syncEnabled ? "Sync ON" : "Sync OFF"
+			document.getElementById('syncBtn').style.background = syncEnabled ? "#4caf50" : "#0288d1"
+
+			sendCommand(99, 0, syncEnabled ? 1 : 0, 0)  // cmdT=99, cmdA=1/0
+		}
+
+		// ── Degree input ──────────────────────────────────────────────
 		function setDegree() {
 			const degInput = document.getElementById('degreeInput')
 			let deg = parseFloat(degInput.value)
@@ -370,19 +379,11 @@
 				return
 			}
 
-			// Clamp to reasonable range (adjust if your servo allows more)
 			deg = Math.max(-180, Math.min(180, deg))
-
-			// Convert degrees to raw position (0-4095)
 			const raw = Math.round(2047 + (deg * 4095 / 360))
 
-			// Send command via MQTT
 			sendCommand(1, 22, raw, 0)
-
-			// Optional: update displayed current position immediately
 			document.getElementById("current-pos").textContent = `Поточна позиція: ${deg}°`
-
-			// Clear input
 			degInput.value = ''
 		}
 
@@ -441,10 +442,6 @@
 			document.getElementById("position-input").value = 2047
 			document.getElementById("current-pos").textContent = 'Поточна позиція: 0°'
 			initMap()
-			map.on('tileerror', function (e) {
-				console.error('Tile error:', e.url, e.error)
-				alert('Помилка завантаження карти. Перевірте консоль (F12) або спробуйте інший провайдер тайлів.')
-			})
 
 			// Auto-connect with saved MQTT creds if available
 			const savedMqttUser = localStorage.getItem('mqttUser')
@@ -456,27 +453,7 @@
 					document.getElementById('mainContent').style.display = 'block'
 				}
 			}
-		}
-
-		function switchMotor(motorIndex) {
-			sendCommand(10, 0, motorIndex, 0)  // cmdT=10 for switch, cmdA = index (0 or 1)
-		}
-
-		let syncEnabled = false
-
-		function toggleSync() {
-			syncEnabled = !syncEnabled
-			document.getElementById('syncBtn').textContent = syncEnabled ? "Sync ON" : "Sync OFF"
-			document.getElementById('syncBtn').style.background = syncEnabled ? "#4caf50" : "#0288d1"
-
-			// Send toggle via MQTT
-			const payload = JSON.stringify({
-				token: authToken,
-				cmdT: 99,
-				cmdA: syncEnabled ? 1 : 0
-			})
-			mqttClient.publish('Werden/command', payload)
-		}
+		};
 	</script>
 </body>
 
