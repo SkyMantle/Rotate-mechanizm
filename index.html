@@ -123,17 +123,17 @@
 			cursor: pointer;
 		}
 
-		#current-pos {
+		.motor-pos {
 			font-size: 20px;
-			margin: 12px 0;
+			margin: 8px 0;
 			text-align: center;
 		}
 
-		#STSValue {
+		.STSValue {
 			font-size: 16px;
 			text-align: center;
-			margin: 15px 0;
-			padding: 12px;
+			margin: 10px 0;
+			padding: 10px;
 			background: #111;
 			border-radius: 8px;
 		}
@@ -205,7 +205,10 @@
 
 	<div id="mainContent">
 		<h3>Польовик</h3>
-		<div class="StsValue" id="STSValue">Очікування даних сервоприводу...</div>
+
+		<!-- Separate status for each motor -->
+		<div class="STSValue" id="STSValue-motor1">Motor 1: Очікування даних сервоприводу...</div>
+		<div class="STSValue" id="STSValue-motor2">Motor 2: Очікування даних сервоприводу...</div>
 
 		<div class="buttonContainer">
 			<button id="motor1Btn" onclick="switchMotor(0)">Motor 1</button>
@@ -225,8 +228,10 @@
 		<div id="slider-container">
 			<input type="range" id="position-slider" min="0" max="4095" value="2047" step="any">
 		</div>
-		<input type="number" id="position-input" min="0" max="4095" value="2047" style="display:none;">
-		<p id="current-pos">Поточна позиція: 0°</p>
+
+		<!-- Separate current position for each motor -->
+		<p class="motor-pos" id="current-pos-motor1">Motor 1: 0°</p>
+		<p class="motor-pos" id="current-pos-motor2">Motor 2: 0°</p>
 
 		<div style="margin:25px 0; text-align:center;">
 			<input type="number" id="degreeInput" min="-180" max="180" step="0.1" placeholder=""
@@ -301,13 +306,21 @@
 					try {
 						const data = JSON.parse(payload)
 
-						document.getElementById("STSValue").innerHTML =
-							`ID: ${data.id} | Raw: ${data.raw} | ${data.deg}° | Нап: ${data.volt || '?'}V | Нав: ${data.load || '?'}% | Швид: ${data.speed || '?'} | Темп: ${data.temp || '?'}°C | Вст.швид: ${data.set_speed || '?'}`
+						// Update slider to latest received value (works well in sync and single mode)
 						document.getElementById("position-slider").value = data.raw
-						document.getElementById("current-pos").textContent = `Поточна позиція: ${data.deg}°`
 
-						if (data.id == 1) degMotor1 = data.deg
-						else if (data.id == 2) degMotor2 = data.deg
+						// Update specific motor status and position
+						if (data.id == 1) {
+							document.getElementById("STSValue-motor1").innerHTML =
+								`Motor 1 | ID: ${data.id} | Raw: ${data.raw} | ${data.deg}° | Нап: ${data.volt || '?'}V | Нав: ${data.load || '?'}% | Швид: ${data.speed || '?'} | Темп: ${data.temp || '?'}°C | Вст.швид: ${data.set_speed || '?'}`
+							document.getElementById("current-pos-motor1").textContent = `Motor 1: ${data.deg}°`
+							degMotor1 = data.deg
+						} else if (data.id == 2) {
+							document.getElementById("STSValue-motor2").innerHTML =
+								`Motor 2 | ID: ${data.id} | Raw: ${data.raw} | ${data.deg}° | Нап: ${data.volt || '?'}V | Нав: ${data.load || '?'}% | Швид: ${data.speed || '?'} | Темп: ${data.temp || '?'}°C | Вст.швид: ${data.set_speed || '?'}`
+							document.getElementById("current-pos-motor2").textContent = `Motor 2: ${data.deg}°`
+							degMotor2 = data.deg
+						}
 
 						// Do NOT change active motor when sync is ON
 						if (!syncEnabled && !pendingSwitch) {
@@ -382,7 +395,6 @@
 		function highlightActiveMotor() {
 			const btn1 = document.getElementById('motor1Btn')
 			const btn2 = document.getElementById('motor2Btn')
-			// Only show highlight if sync is OFF
 			if (syncEnabled) {
 				btn1.classList.remove('active')
 				btn2.classList.remove('active')
@@ -400,7 +412,6 @@
 			btn.style.background = syncEnabled ? "#4caf50" : "#0288d1"
 			sendCommand(99, syncEnabled ? 1 : 0)
 
-			// Immediately update highlights (remove when sync ON)
 			highlightActiveMotor()
 			updateMapDirection()
 		}
@@ -421,7 +432,6 @@
 			const raw = Math.round(2047 + (deg * 4095 / 360))
 
 			document.getElementById("position-slider").value = raw
-			document.getElementById("current-pos").textContent = `Поточна позиція: ${deg}°`
 			if (activeMotor === 0) degMotor1 = deg
 			else degMotor2 = deg
 			updateMapDirection()
@@ -434,7 +444,6 @@
 			const newPos = parseInt(this.value)
 			const deg = Math.round((newPos - 2047) * 360 / 4095)
 
-			document.getElementById("current-pos").textContent = `Поточна позиція: ${deg}°`
 			if (activeMotor === 0) degMotor1 = deg
 			else degMotor2 = deg
 			updateMapDirection()
@@ -487,7 +496,6 @@
 			arrowRed.setLatLngs(line1)
 			arrowBlue.setLatLngs(line2)
 
-			// REMOVE YELLOW HIGHLIGHT ENTIRELY WHEN SYNC IS ON
 			if (syncEnabled) {
 				outlineYellow1.setLatLngs([])
 				outlineYellow2.setLatLngs([])
@@ -499,7 +507,6 @@
 
 		window.onload = function () {
 			document.getElementById("position-slider").value = 2047
-			document.getElementById("current-pos").textContent = 'Поточна позиція: 0°'
 
 			initMap()
 			highlightActiveMotor()
