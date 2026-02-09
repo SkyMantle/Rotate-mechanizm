@@ -8,7 +8,6 @@
 	<link rel="icon" href="data:,">
 	<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 	<style>
-		/* ── your styles unchanged ── */
 		html,
 		body {
 			margin: 0;
@@ -72,6 +71,18 @@
 			border-radius: 8px;
 			cursor: pointer;
 			min-width: 60px;
+		}
+
+		#motor1Btn,
+		#motor2Btn {
+			transition: all 0.25s ease;
+		}
+
+		#motor1Btn.active,
+		#motor2Btn.active {
+			border: 4px solid #ffff00 !important;
+			box-shadow: 0 0 15px #ffff00;
+			background: #5a5fff;
 		}
 
 		button:hover {
@@ -197,8 +208,8 @@
 		<div class="StsValue" id="STSValue">Очікування даних сервоприводу...</div>
 
 		<div class="buttonContainer">
-			<button onclick="switchMotor(0)">Motor 1</button>
-			<button onclick="switchMotor(1)">Motor 2</button>
+			<button id="motor1Btn" onclick="switchMotor(0)">Motor 1</button>
+			<button id="motor2Btn" onclick="switchMotor(1)">Motor 2</button>
 			<button id="syncBtn" onclick="toggleSync()" style="padding:12px 30px; background:#0288d1; color:white;">Sync
 				OFF</button>
 			<button onmousedown="toggleCheckbox(1,6,0,0)" ontouchstart="toggleCheckbox(1,6,0,0)"
@@ -241,9 +252,13 @@
 		let mqttConnected = false
 		let mqttClient = null
 
-		// Store last known degrees for both motors
-		let lastDegMotor1 = 0
-		let lastDegMotor2 = 0
+		// Motor state
+		let degMotor1 = 0       // red line – Motor 1
+		let degMotor2 = 0       // blue dashed – Motor 2
+		let activeMotor = 0     // 0 = Motor 1, 1 = Motor 2
+
+		// Map layers
+		let map, marker, arrowRed, arrowBlue, outlineYellow1, outlineYellow2
 
 		// ── Connect to MQTT ──────────
 		function connectMQTT(mqttUser, mqttPass) {
@@ -289,21 +304,29 @@
 					try {
 						const data = JSON.parse(payload)
 
-						// Update displayed status (your original logic)
+						// Update UI (shows currently active motor)
 						document.getElementById("STSValue").innerHTML =
 							`ID: ${data.id} | Raw: ${data.raw} | ${data.deg}° | Нап: ${data.volt || '?'}V | Нав: ${data.load || '?'}% | Швид: ${data.speed || '?'} | Темп: ${data.temp || '?'}°C | Вст.швид: ${data.set_speed || '?'}`
 						document.getElementById("position-slider").value = data.raw
 						document.getElementById("current-pos").textContent = `Поточна позиція: ${data.deg}°`
 
-						// Remember angle for this motor
+						// Store last known angle per motor
 						if (data.id == 1) {
-							lastDegMotor1 = data.deg
+							degMotor1 = data.deg
 						} else if (data.id == 2) {
-							lastDegMotor2 = data.deg
+							degMotor2 = data.deg
 						}
 
-						// Update arrows: red = current (active), blue dashed = Motor 2
-						updateMapDirection(data.deg, lastDegMotor2)
+						// Optional: more reliable active motor detection if ESP sends "activeIndex"
+						if (data.activeIndex !== undefined) {
+							activeMotor = data.activeIndex
+						} else {
+							// fallback – assume based on reported ID
+							activeMotor = (data.id == 1) ? 0 : 1
+						}
+
+						highlightActiveMotor()
+						updateMapDirection()
 
 					} catch (e) {
 						console.error('Status parse error:', e)
@@ -317,7 +340,7 @@
 			})
 		}
 
-		// ── Login process (unchanged) ─────────────────────────────────────────────
+		// ── Login process ─────────────────────────────────────────────
 		function tryLogin() {
 			const user = document.getElementById('username').value.trim()
 			const pass = document.getElementById('password').value.trim()
@@ -345,7 +368,7 @@
 			}, 2000)
 		}
 
-		// ── Send command (unchanged) ─────────────────────────────────────
+		// ── Commands ──────────────────────────────────────────────────
 		function sendCommand(cmdT, cmdI, cmdA = 0, cmdB = 0) {
 			if (!authToken || !mqttConnected) {
 				alert('Спочатку авторизуйтесь та підключіться')
@@ -355,13 +378,26 @@
 			mqttClient.publish('Werden/command', payload)
 		}
 
-		function switchMotor(index) { sendCommand(10, 0, index, 0) }
+		function switchMotor(index) {
+			activeMotor = index
+			sendCommand(10, 0, index, 0)
+			highlightActiveMotor()
+			updateMapDirection()   // show yellow immediately
+		}
+
+		function highlightActiveMotor() {
+			const btn1 = document.getElementById('motor1Btn')
+			const btn2 = document.getElementById('motor2Btn')
+			btn1.classList.toggle('active', activeMotor === 0)
+			btn2.classList.toggle('active', activeMotor === 1)
+		}
 
 		let syncEnabled = false
 		function toggleSync() {
 			syncEnabled = !syncEnabled
-			document.getElementById('syncBtn').textContent = syncEnabled ? "Sync ON" : "Sync OFF"
-			document.getElementById('syncBtn').style.background = syncEnabled ? "#4caf50" : "#0288d1"
+			const btn = document.getElementById('syncBtn')
+			btn.textContent = syncEnabled ? "Sync ON" : "Sync OFF"
+			btn.style.background = syncEnabled ? "#4caf50" : "#0288d1"
 			sendCommand(99, 0, syncEnabled ? 1 : 0, 0)
 		}
 
@@ -371,7 +407,7 @@
 			if (isNaN(deg)) { alert('Введіть коректне число градусів'); return }
 			deg = Math.max(-180, Math.min(180, deg))
 			const raw = Math.round(2047 + (deg * 4095 / 360))
-			sendCommand(1, 22, raw, 0)
+			sendCommand(22, 0, raw, 0)   // corrected cmdT to 22 (position)
 			document.getElementById("current-pos").textContent = `Поточна позиція: ${deg}°`
 			degInput.value = ''
 		}
@@ -382,7 +418,7 @@
 
 		document.getElementById('position-slider').addEventListener('input', function () {
 			const newPos = parseInt(this.value)
-			sendCommand(1, 22, newPos, 0)
+			sendCommand(22, 0, newPos, 0)   // corrected to cmdT=22
 		})
 
 		function logout() {
@@ -392,53 +428,60 @@
 			location.reload()
 		}
 
-		// ── Map with two arrows ──────────────────────────────────────
-		let map, marker, arrow1, arrow2
-
+		// ── Map ───────────────────────────────────────────────────────
 		function initMap() {
 			map = L.map('map').setView([48.904339, 37.605560], 10)
 			L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
-				attribution: 'Map data: © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors, SRTM | © <a href="https://opentopomap.org">OpenTopoMap</a> (CC-BY-SA)',
+				attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors, SRTM | © <a href="https://opentopomap.org">OpenTopoMap</a> (CC-BY-SA)',
 				maxZoom: 17
 			}).addTo(map)
 
 			marker = L.marker([48.904339, 37.605560]).addTo(map)
 				.bindPopup('Польовик').openPopup()
 
-			arrow1 = L.polyline([], { color: 'red', weight: 8, opacity: 0.9 }).addTo(map)         // active motor
-			arrow2 = L.polyline([], { color: '#00aaff', weight: 6, opacity: 0.7, dashArray: '6, 6' }).addTo(map) // Motor 2
+			// Yellow outlines (glow) for selected motor
+			outlineYellow1 = L.polyline([], { color: '#ffff00', weight: 14, opacity: 0.5 }).addTo(map)
+			outlineYellow2 = L.polyline([], { color: '#ffff00', weight: 14, opacity: 0.5 }).addTo(map)
 
-			updateMapDirection(0, 0)
+			// Fixed color arrows
+			arrowRed = L.polyline([], { color: 'red', weight: 8, opacity: 0.95 }).addTo(map)           // Motor 1
+			arrowBlue = L.polyline([], { color: '#00aaff', weight: 6, opacity: 0.75, dashArray: '8, 8' }).addTo(map) // Motor 2
+
+			updateMapDirection()
 		}
 
-		function updateMapDirection(degActive, degMotor2) {
+		function updateMapDirection() {
 			if (!map || !marker) return
 			const center = marker.getLatLng()
 			const distance = 0.18
 
-			// Arrow 1 – active/selected motor (red)
-			if (degActive != null && !isNaN(degActive)) {
-				const rad = degActive * Math.PI / 180
+			const createLine = (deg) => {
+				if (isNaN(deg)) return []
+				const rad = deg * Math.PI / 180
 				const dLat = distance * Math.cos(rad)
 				const dLng = distance * Math.sin(rad) / Math.cos(center.lat * Math.PI / 180)
-				arrow1.setLatLngs([[center.lat, center.lng], [center.lat + dLat, center.lng + dLng]])
+				return [[center.lat, center.lng], [center.lat + dLat, center.lng + dLng]]
 			}
 
-			// Arrow 2 – Motor 2 (blue dashed) – persists even when Motor 1 is selected
-			if (degMotor2 != null && !isNaN(degMotor2)) {
-				const rad = degMotor2 * Math.PI / 180
-				const dLat = distance * Math.cos(rad)
-				const dLng = distance * Math.sin(rad) / Math.cos(center.lat * Math.PI / 180)
-				arrow2.setLatLngs([[center.lat, center.lng], [center.lat + dLat, center.lng + dLng]])
-			}
+			// Motor 1 – red
+			const line1 = createLine(degMotor1)
+			arrowRed.setLatLngs(line1)
+			outlineYellow1.setLatLngs(activeMotor === 0 ? line1 : [])
+
+			// Motor 2 – blue dashed
+			const line2 = createLine(degMotor2)
+			arrowBlue.setLatLngs(line2)
+			outlineYellow2.setLatLngs(activeMotor === 1 ? line2 : [])
 		}
 
-		// ── Init ──────────────────────────────────────────────────────
+		// ── Initialization ────────────────────────────────────────────
 		window.onload = function () {
 			document.getElementById("position-slider").value = 2047
 			document.getElementById("position-input").value = 2047
 			document.getElementById("current-pos").textContent = 'Поточна позиція: 0°'
+
 			initMap()
+			highlightActiveMotor()   // default: Motor 1 selected
 
 			const savedMqttUser = localStorage.getItem('mqttUser')
 			const savedMqttPass = localStorage.getItem('mqttPass')
