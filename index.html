@@ -212,14 +212,15 @@
 			<button id="motor2Btn" onclick="switchMotor(1)">Motor 2</button>
 			<button id="syncBtn" onclick="toggleSync()" style="padding:12px 30px; background:#0288d1; color:white;">Sync
 				OFF</button>
-			<button onmousedown="toggleCheckbox(1,6,0,0)" ontouchstart="toggleCheckbox(1,6,0,0)"
-				onmouseup="toggleCheckbox(1,2,0,0)" ontouchend="toggleCheckbox(1,2,0,0)">
-				< </button>
-					<button onclick="toggleCheckbox(1,1,0,0)">0°</button>
-					<button onmousedown="toggleCheckbox(1,5,0,0)" ontouchstart="toggleCheckbox(1,5,0,0)"
-						onmouseup="toggleCheckbox(1,2,0,0)" ontouchend="toggleCheckbox(1,2,0,0)">></button>
-					<button onclick="toggleCheckbox(1,7,0,0)">+</button>
-					<button onclick="toggleCheckbox(1,8,0,0)">-</button>
+
+			<!-- Fixed direction & speed buttons -->
+			<button onmousedown="startMove(6)" onmouseup="stopMove()" ontouchstart="startMove(6)" ontouchend="stopMove()">
+				<<< /button>
+					<button onclick="sendCommand(1, activeMotor)">0°</button>
+					<button onmousedown="startMove(5)" onmouseup="stopMove()" ontouchstart="startMove(5)"
+						ontouchend="stopMove()">>></button>
+					<button onclick="sendCommand(7, activeMotor)">+</button>
+					<button onclick="sendCommand(8, activeMotor)">-</button>
 		</div>
 
 		<div id="slider-container">
@@ -256,7 +257,7 @@
 		let degMotor1 = 0       // red line – Motor 1
 		let degMotor2 = 0       // blue dashed – Motor 2
 		let activeMotor = 0     // 0 = Motor 1, 1 = Motor 2
-		let pendingSwitch = false  // NEW: prevent bounce during switch
+		let pendingSwitch = false
 
 		// Map layers
 		let map, marker, arrowRed, arrowBlue, outlineYellow1, outlineYellow2
@@ -305,17 +306,14 @@
 					try {
 						const data = JSON.parse(payload)
 
-						// Update UI (shows currently active motor)
 						document.getElementById("STSValue").innerHTML =
 							`ID: ${data.id} | Raw: ${data.raw} | ${data.deg}° | Нап: ${data.volt || '?'}V | Нав: ${data.load || '?'}% | Швид: ${data.speed || '?'} | Темп: ${data.temp || '?'}°C | Вст.швид: ${data.set_speed || '?'}`
 						document.getElementById("position-slider").value = data.raw
 						document.getElementById("current-pos").textContent = `Поточна позиція: ${data.deg}°`
 
-						// Store last known angle per motor
 						if (data.id == 1) degMotor1 = data.deg
 						else if (data.id == 2) degMotor2 = data.deg
 
-						// Update activeMotor ONLY if not pending switch (anti-bounce)
 						if (!pendingSwitch) {
 							if (data.activeIndex !== undefined) {
 								activeMotor = data.activeIndex
@@ -367,32 +365,30 @@
 			}, 2000)
 		}
 
-		// ── Commands ──────────────────────────────────────────────────
-		function sendCommand(cmdT, cmdI, cmdA = 0, cmdB = 0) {
+		// ── Send command with correct motor index ─────────────────────
+		function sendCommand(cmdT, cmdA = 0, cmdB = 0) {
 			if (!authToken || !mqttConnected) {
 				alert('Спочатку авторизуйтесь та підключіться')
 				return
 			}
+			// cmdI = current active motor index for all motor-specific commands
+			const cmdI = (cmdT === 99 || cmdT === 10) ? 0 : activeMotor
 			const payload = JSON.stringify({ token: authToken, cmdT, cmdI, cmdA, cmdB })
 			mqttClient.publish('Werden/command', payload)
 		}
 
 		function switchMotor(index) {
-			pendingSwitch = true  // NEW: start pending
+			pendingSwitch = true
 			activeMotor = index
-			sendCommand(10, 0, index, 0)
+			sendCommand(10, index)  // cmdT=10 selects motor by index
 			highlightActiveMotor()
 			updateMapDirection()
-
-			// Clear pending after 1s (enough for next status)
-			setTimeout(() => { pendingSwitch = false }, 1000)
+			setTimeout(() => { pendingSwitch = false }, 1200)
 		}
 
 		function highlightActiveMotor() {
-			const btn1 = document.getElementById('motor1Btn')
-			const btn2 = document.getElementById('motor2Btn')
-			btn1.classList.toggle('active', activeMotor === 0)
-			btn2.classList.toggle('active', activeMotor === 1)
+			document.getElementById('motor1Btn').classList.toggle('active', activeMotor === 0)
+			document.getElementById('motor2Btn').classList.toggle('active', activeMotor === 1)
 		}
 
 		let syncEnabled = false
@@ -401,7 +397,16 @@
 			const btn = document.getElementById('syncBtn')
 			btn.textContent = syncEnabled ? "Sync ON" : "Sync OFF"
 			btn.style.background = syncEnabled ? "#4caf50" : "#0288d1"
-			sendCommand(99, 0, syncEnabled ? 1 : 0, 0)
+			sendCommand(99, syncEnabled ? 1 : 0)
+		}
+
+		// Direction control (continuous press)
+		function startMove(cmdT) {
+			sendCommand(cmdT, 0)
+		}
+
+		function stopMove() {
+			sendCommand(2, 0)  // stop command (add case 2 in firmware if not present)
 		}
 
 		function setDegree() {
@@ -411,19 +416,15 @@
 			deg = Math.max(-180, Math.min(180, deg))
 			const raw = Math.round(2047 + (deg * 4095 / 360))
 
-			// Optimistic update (reduce perceived latency)
+			// Optimistic UI update
 			document.getElementById("position-slider").value = raw
 			document.getElementById("current-pos").textContent = `Поточна позиція: ${deg}°`
 			if (activeMotor === 0) degMotor1 = deg
 			else degMotor2 = deg
 			updateMapDirection()
 
-			sendCommand(22, 0, raw, 0)
+			sendCommand(22, raw)
 			degInput.value = ''
-		}
-
-		function toggleCheckbox(inputT, inputI, inputA, inputB) {
-			sendCommand(inputT, inputI, inputA, inputB)
 		}
 
 		document.getElementById('position-slider').addEventListener('input', function () {
@@ -436,7 +437,7 @@
 			else degMotor2 = deg
 			updateMapDirection()
 
-			sendCommand(22, 0, newPos, 0)
+			sendCommand(22, newPos)
 		})
 
 		function logout() {
@@ -457,13 +458,11 @@
 			marker = L.marker([48.904339, 37.605560]).addTo(map)
 				.bindPopup('Польовик').openPopup()
 
-			// Yellow outlines (glow) for selected motor
 			outlineYellow1 = L.polyline([], { color: '#ffff00', weight: 14, opacity: 0.5 }).addTo(map)
 			outlineYellow2 = L.polyline([], { color: '#ffff00', weight: 14, opacity: 0.5 }).addTo(map)
 
-			// Fixed color arrows
-			arrowRed = L.polyline([], { color: 'red', weight: 8, opacity: 0.95 }).addTo(map)           // Motor 1
-			arrowBlue = L.polyline([], { color: '#00aaff', weight: 6, opacity: 0.75, dashArray: '8, 8' }).addTo(map) // Motor 2
+			arrowRed = L.polyline([], { color: 'red', weight: 8, opacity: 0.95 }).addTo(map)
+			arrowBlue = L.polyline([], { color: '#00aaff', weight: 6, opacity: 0.75, dashArray: '8, 8' }).addTo(map)
 
 			updateMapDirection()
 		}
@@ -481,12 +480,10 @@
 				return [[center.lat, center.lng], [center.lat + dLat, center.lng + dLng]]
 			}
 
-			// Motor 1 – red
 			const line1 = createLine(degMotor1)
 			arrowRed.setLatLngs(line1)
 			outlineYellow1.setLatLngs(activeMotor === 0 ? line1 : [])
 
-			// Motor 2 – blue dashed
 			const line2 = createLine(degMotor2)
 			arrowBlue.setLatLngs(line2)
 			outlineYellow2.setLatLngs(activeMotor === 1 ? line2 : [])
@@ -495,11 +492,10 @@
 		// ── Initialization ────────────────────────────────────────────
 		window.onload = function () {
 			document.getElementById("position-slider").value = 2047
-			document.getElementById("position-input").value = 2047
 			document.getElementById("current-pos").textContent = 'Поточна позиція: 0°'
 
 			initMap()
-			highlightActiveMotor()   // default: Motor 1 selected
+			highlightActiveMotor()
 
 			const savedMqttUser = localStorage.getItem('mqttUser')
 			const savedMqttPass = localStorage.getItem('mqttPass')
