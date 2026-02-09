@@ -314,7 +314,7 @@
 						if (data.id == 1) degMotor1 = data.deg
 						else if (data.id == 2) degMotor2 = data.deg
 
-						if (!pendingSwitch) {
+						if (!syncEnabled && !pendingSwitch) {
 							if (data.activeIndex !== undefined) {
 								activeMotor = data.activeIndex
 							} else {
