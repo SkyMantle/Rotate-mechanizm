@@ -213,9 +213,8 @@
 			<button id="syncBtn" onclick="toggleSync()" style="padding:12px 30px; background:#0288d1; color:white;">Sync
 				OFF</button>
 
-			<!-- Fixed direction & speed buttons -->
 			<button onmousedown="startMove(6)" onmouseup="stopMove()" ontouchstart="startMove(6)" ontouchend="stopMove()">
-				<< </button>
+				<<< /button>
 					<button onclick="sendCommand(1, activeMotor)">0°</button>
 					<button onmousedown="startMove(5)" onmouseup="stopMove()" ontouchstart="startMove(5)"
 						ontouchend="stopMove()">>></button>
@@ -245,7 +244,6 @@
 	<script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
 	<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 	<script>
-		// ── MQTT Config ──────────────────────────────────────────────
 		const MQTT_BROKER = 'wss://940d7f06dbf1455c841afb26f9c5cf1c.s1.eu.hivemq.cloud:8884/mqtt'
 		const CLIENT_ID = 'web-client-' + Math.random().toString(16).substr(2, 8)
 
@@ -253,16 +251,13 @@
 		let mqttConnected = false
 		let mqttClient = null
 
-		// Motor state
-		let degMotor1 = 0       // red line – Motor 1
-		let degMotor2 = 0       // blue dashed – Motor 2
-		let activeMotor = 0     // 0 = Motor 1, 1 = Motor 2
+		let degMotor1 = 0
+		let degMotor2 = 0
+		let activeMotor = 0
 		let pendingSwitch = false
 
-		// Map layers
 		let map, marker, arrowRed, arrowBlue, outlineYellow1, outlineYellow2
 
-		// ── Connect to MQTT ──────────
 		function connectMQTT(mqttUser, mqttPass) {
 			mqttClient = mqtt.connect(MQTT_BROKER, {
 				clientId: CLIENT_ID,
@@ -314,6 +309,7 @@
 						if (data.id == 1) degMotor1 = data.deg
 						else if (data.id == 2) degMotor2 = data.deg
 
+						// Do NOT change active motor when sync is ON
 						if (!syncEnabled && !pendingSwitch) {
 							if (data.activeIndex !== undefined) {
 								activeMotor = data.activeIndex
@@ -337,7 +333,6 @@
 			})
 		}
 
-		// ── Login process ─────────────────────────────────────────────
 		function tryLogin() {
 			const user = document.getElementById('username').value.trim()
 			const pass = document.getElementById('password').value.trim()
@@ -365,13 +360,11 @@
 			}, 2000)
 		}
 
-		// ── Send command with correct motor index ─────────────────────
 		function sendCommand(cmdT, cmdA = 0, cmdB = 0) {
 			if (!authToken || !mqttConnected) {
 				alert('Спочатку авторизуйтесь та підключіться')
 				return
 			}
-			// cmdI = current active motor index for all motor-specific commands
 			const cmdI = (cmdT === 99 || cmdT === 10) ? 0 : activeMotor
 			const payload = JSON.stringify({ token: authToken, cmdT, cmdI, cmdA, cmdB })
 			mqttClient.publish('Werden/command', payload)
@@ -380,15 +373,23 @@
 		function switchMotor(index) {
 			pendingSwitch = true
 			activeMotor = index
-			sendCommand(10, index)  // cmdT=10 selects motor by index
+			sendCommand(10, index)
 			highlightActiveMotor()
 			updateMapDirection()
-			setTimeout(() => { pendingSwitch = false }, 1500)
+			setTimeout(() => { pendingSwitch = false }, 1200)
 		}
 
 		function highlightActiveMotor() {
-			document.getElementById('motor1Btn').classList.toggle('active', activeMotor === 0)
-			document.getElementById('motor2Btn').classList.toggle('active', activeMotor === 1)
+			const btn1 = document.getElementById('motor1Btn')
+			const btn2 = document.getElementById('motor2Btn')
+			// Only show highlight if sync is OFF
+			if (syncEnabled) {
+				btn1.classList.remove('active')
+				btn2.classList.remove('active')
+			} else {
+				btn1.classList.toggle('active', activeMotor === 0)
+				btn2.classList.toggle('active', activeMotor === 1)
+			}
 		}
 
 		let syncEnabled = false
@@ -398,15 +399,18 @@
 			btn.textContent = syncEnabled ? "Sync ON" : "Sync OFF"
 			btn.style.background = syncEnabled ? "#4caf50" : "#0288d1"
 			sendCommand(99, syncEnabled ? 1 : 0)
+
+			// Immediately update highlights (remove when sync ON)
+			highlightActiveMotor()
+			updateMapDirection()
 		}
 
-		// Direction control (continuous press)
 		function startMove(cmdT) {
 			sendCommand(cmdT, 0)
 		}
 
 		function stopMove() {
-			sendCommand(2, 0)  // stop command (add case 2 in firmware if not present)
+			sendCommand(2, 0)
 		}
 
 		function setDegree() {
@@ -416,7 +420,6 @@
 			deg = Math.max(-180, Math.min(180, deg))
 			const raw = Math.round(2047 + (deg * 4095 / 360))
 
-			// Optimistic UI update
 			document.getElementById("position-slider").value = raw
 			document.getElementById("current-pos").textContent = `Поточна позиція: ${deg}°`
 			if (activeMotor === 0) degMotor1 = deg
@@ -431,7 +434,6 @@
 			const newPos = parseInt(this.value)
 			const deg = Math.round((newPos - 2047) * 360 / 4095)
 
-			// Optimistic update
 			document.getElementById("current-pos").textContent = `Поточна позиція: ${deg}°`
 			if (activeMotor === 0) degMotor1 = deg
 			else degMotor2 = deg
@@ -447,7 +449,6 @@
 			location.reload()
 		}
 
-		// ── Map ───────────────────────────────────────────────────────
 		function initMap() {
 			map = L.map('map').setView([48.904339, 37.605560], 10)
 			L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
@@ -481,15 +482,21 @@
 			}
 
 			const line1 = createLine(degMotor1)
-			arrowRed.setLatLngs(line1)
-			outlineYellow1.setLatLngs(activeMotor === 0 ? line1 : [])
-
 			const line2 = createLine(degMotor2)
+
+			arrowRed.setLatLngs(line1)
 			arrowBlue.setLatLngs(line2)
-			outlineYellow2.setLatLngs(activeMotor === 1 ? line2 : [])
+
+			// REMOVE YELLOW HIGHLIGHT ENTIRELY WHEN SYNC IS ON
+			if (syncEnabled) {
+				outlineYellow1.setLatLngs([])
+				outlineYellow2.setLatLngs([])
+			} else {
+				outlineYellow1.setLatLngs(activeMotor === 0 ? line1 : [])
+				outlineYellow2.setLatLngs(activeMotor === 1 ? line2 : [])
+			}
 		}
 
-		// ── Initialization ────────────────────────────────────────────
 		window.onload = function () {
 			document.getElementById("position-slider").value = 2047
 			document.getElementById("current-pos").textContent = 'Поточна позиція: 0°'
