@@ -206,7 +206,6 @@
 	<div id="mainContent">
 		<h3>Польовик</h3>
 
-		<!-- Separate status for each motor -->
 		<div class="STSValue" id="STSValue-motor1">Motor 1: Очікування даних сервоприводу...</div>
 		<div class="STSValue" id="STSValue-motor2">Motor 2: Очікування даних сервоприводу...</div>
 
@@ -217,7 +216,7 @@
 				OFF</button>
 
 			<button onmousedown="startMove(6)" onmouseup="stopMove()" ontouchstart="startMove(6)" ontouchend="stopMove()">
-				<< </button>
+				<<< /button>
 					<button onclick="sendCommand(1, activeMotor)">0°</button>
 					<button onmousedown="startMove(5)" onmouseup="stopMove()" ontouchstart="startMove(5)"
 						ontouchend="stopMove()">>></button>
@@ -229,7 +228,6 @@
 			<input type="range" id="position-slider" min="0" max="4095" value="2047" step="any">
 		</div>
 
-		<!-- Separate current position for each motor -->
 		<p class="motor-pos" id="current-pos-motor1">Motor 1: 0°</p>
 		<p class="motor-pos" id="current-pos-motor2">Motor 2: 0°</p>
 
@@ -260,6 +258,8 @@
 		let degMotor2 = 0
 		let activeMotor = 0
 		let pendingSwitch = false
+
+		let syncEnabled = false  // will be driven by server "sync" field
 
 		let map, marker, arrowRed, arrowBlue, outlineYellow1, outlineYellow2
 
@@ -306,7 +306,7 @@
 					try {
 						const data = JSON.parse(payload)
 
-						// Update slider to latest received value (works well in sync and single mode)
+						// Update slider (last received raw)
 						document.getElementById("position-slider").value = data.raw
 
 						// Update specific motor status and position
@@ -322,16 +322,21 @@
 							degMotor2 = data.deg
 						}
 
-						// Do NOT change active motor when sync is ON
-						if (!syncEnabled && !pendingSwitch) {
-							if (data.activeIndex !== undefined) {
-								activeMotor = data.activeIndex
-							} else {
-								activeMotor = (data.id == 1) ? 0 : 1
+						// Server-driven sync state
+						if (data.sync !== undefined) {
+							const newSync = data.sync === true
+							if (newSync !== syncEnabled) {
+								syncEnabled = newSync
+								const btn = document.getElementById('syncBtn')
+								btn.textContent = syncEnabled ? "Sync ON" : "Sync OFF"
+								btn.style.background = syncEnabled ? "#4caf50" : "#0288d1"
 							}
-							highlightActiveMotor()
 						}
 
+						// NO activeMotor update from status — only user click changes it
+						// This completely eliminates bouncing
+
+						highlightActiveMotor()
 						updateMapDirection()
 
 					} catch (e) {
@@ -389,7 +394,7 @@
 			sendCommand(10, index)
 			highlightActiveMotor()
 			updateMapDirection()
-			setTimeout(() => { pendingSwitch = false }, 1200)
+			setTimeout(() => { pendingSwitch = false }, 2000)  // longer protection
 		}
 
 		function highlightActiveMotor() {
@@ -404,14 +409,12 @@
 			}
 		}
 
-		let syncEnabled = false
 		function toggleSync() {
 			syncEnabled = !syncEnabled
 			const btn = document.getElementById('syncBtn')
 			btn.textContent = syncEnabled ? "Sync ON" : "Sync OFF"
 			btn.style.background = syncEnabled ? "#4caf50" : "#0288d1"
 			sendCommand(99, syncEnabled ? 1 : 0)
-
 			highlightActiveMotor()
 			updateMapDirection()
 		}
@@ -432,8 +435,8 @@
 			const raw = Math.round(2047 + (deg * 4095 / 360))
 
 			document.getElementById("position-slider").value = raw
-			if (activeMotor === 0) degMotor1 = deg
-			else degMotor2 = deg
+			degMotor1 = deg
+			degMotor2 = deg  // optimistic for both in sync
 			updateMapDirection()
 
 			sendCommand(22, raw)
@@ -444,8 +447,8 @@
 			const newPos = parseInt(this.value)
 			const deg = Math.round((newPos - 2047) * 360 / 4095)
 
-			if (activeMotor === 0) degMotor1 = deg
-			else degMotor2 = deg
+			degMotor1 = deg
+			degMotor2 = deg  // optimistic
 			updateMapDirection()
 
 			sendCommand(22, newPos)
