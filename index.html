@@ -215,7 +215,7 @@
 
 			<!-- Fixed direction & speed buttons -->
 			<button onmousedown="startMove(6)" onmouseup="stopMove()" ontouchstart="startMove(6)" ontouchend="stopMove()">
-				<<< /button>
+				<< </button>
 					<button onclick="sendCommand(1, activeMotor)">0°</button>
 					<button onmousedown="startMove(5)" onmouseup="stopMove()" ontouchstart="startMove(5)"
 						ontouchend="stopMove()">>></button>
@@ -383,7 +383,7 @@
 			sendCommand(10, index)  // cmdT=10 selects motor by index
 			highlightActiveMotor()
 			updateMapDirection()
-			setTimeout(() => { pendingSwitch = false }, 1200)
+			setTimeout(() => { pendingSwitch = false }, 1500)
 		}
 
 		function highlightActiveMotor() {
