@@ -214,10 +214,10 @@
 				OFF</button>
 			<button onmousedown="toggleCheckbox(1,6,0,0)" ontouchstart="toggleCheckbox(1,6,0,0)"
 				onmouseup="toggleCheckbox(1,2,0,0)" ontouchend="toggleCheckbox(1,2,0,0)">
-				<< /button>
+				<<< /button>
 					<button onclick="toggleCheckbox(1,1,0,0)">0°</button>
 					<button onmousedown="toggleCheckbox(1,5,0,0)" ontouchstart="toggleCheckbox(1,5,0,0)"
-						onmouseup="toggleCheckbox(1,2,0,0)" ontouchend="toggleCheckbox(1,2,0,0)">></button>
+						onmouseup="toggleCheckbox(1,2,0,0)" ontouchend="toggleCheckbox(1,2,0,0)">>></button>
 					<button onclick="toggleCheckbox(1,7,0,0)">+</button>
 					<button onclick="toggleCheckbox(1,8,0,0)">-</button>
 		</div>
@@ -256,6 +256,7 @@
 		let degMotor1 = 0       // red line – Motor 1
 		let degMotor2 = 0       // blue dashed – Motor 2
 		let activeMotor = 0     // 0 = Motor 1, 1 = Motor 2
+		let pendingSwitch = false  // NEW: prevent bounce during switch
 
 		// Map layers
 		let map, marker, arrowRed, arrowBlue, outlineYellow1, outlineYellow2
@@ -311,21 +312,19 @@
 						document.getElementById("current-pos").textContent = `Поточна позиція: ${data.deg}°`
 
 						// Store last known angle per motor
-						if (data.id == 1) {
-							degMotor1 = data.deg
-						} else if (data.id == 2) {
-							degMotor2 = data.deg
+						if (data.id == 1) degMotor1 = data.deg
+						else if (data.id == 2) degMotor2 = data.deg
+
+						// Update activeMotor ONLY if not pending switch (anti-bounce)
+						if (!pendingSwitch) {
+							if (data.activeIndex !== undefined) {
+								activeMotor = data.activeIndex
+							} else {
+								activeMotor = (data.id == 1) ? 0 : 1
+							}
+							highlightActiveMotor()
 						}
 
-						// Optional: more reliable active motor detection if ESP sends "activeIndex"
-						if (data.activeIndex !== undefined) {
-							activeMotor = data.activeIndex
-						} else {
-							// fallback – assume based on reported ID
-							activeMotor = (data.id == 1) ? 0 : 1
-						}
-
-						highlightActiveMotor()
 						updateMapDirection()
 
 					} catch (e) {
@@ -379,10 +378,14 @@
 		}
 
 		function switchMotor(index) {
+			pendingSwitch = true  // NEW: start pending
 			activeMotor = index
 			sendCommand(10, 0, index, 0)
 			highlightActiveMotor()
-			updateMapDirection()   // show yellow immediately
+			updateMapDirection()
+
+			// Clear pending after 1s (enough for next status)
+			setTimeout(() => { pendingSwitch = false }, 1000)
 		}
 
 		function highlightActiveMotor() {
@@ -407,8 +410,15 @@
 			if (isNaN(deg)) { alert('Введіть коректне число градусів'); return }
 			deg = Math.max(-180, Math.min(180, deg))
 			const raw = Math.round(2047 + (deg * 4095 / 360))
-			sendCommand(22, 0, raw, 0)   // corrected cmdT to 22 (position)
+
+			// Optimistic update (reduce perceived latency)
+			document.getElementById("position-slider").value = raw
 			document.getElementById("current-pos").textContent = `Поточна позиція: ${deg}°`
+			if (activeMotor === 0) degMotor1 = deg
+			else degMotor2 = deg
+			updateMapDirection()
+
+			sendCommand(22, 0, raw, 0)
 			degInput.value = ''
 		}
 
@@ -418,7 +428,15 @@
 
 		document.getElementById('position-slider').addEventListener('input', function () {
 			const newPos = parseInt(this.value)
-			sendCommand(22, 0, newPos, 0)   // corrected to cmdT=22
+			const deg = Math.round((newPos - 2047) * 360 / 4095)
+
+			// Optimistic update
+			document.getElementById("current-pos").textContent = `Поточна позиція: ${deg}°`
+			if (activeMotor === 0) degMotor1 = deg
+			else degMotor2 = deg
+			updateMapDirection()
+
+			sendCommand(22, 0, newPos, 0)
 		})
 
 		function logout() {
