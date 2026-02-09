@@ -112,6 +112,8 @@
 			background: linear-gradient(to right, #333, #4247b7, #333);
 			border-radius: 10px;
 			appearance: none;
+			transition: value 0.15s ease;
+			/* smooth slider movement */
 		}
 
 		#position-slider::-webkit-slider-thumb {
@@ -127,6 +129,8 @@
 			font-size: 20px;
 			margin: 12px 0;
 			text-align: center;
+			transition: all 0.15s ease;
+			/* smooth text change */
 		}
 
 		#STSValue {
@@ -136,6 +140,7 @@
 			padding: 12px;
 			background: #111;
 			border-radius: 8px;
+			transition: all 0.2s ease;
 		}
 
 		#map {
@@ -253,6 +258,8 @@
 
 		let degMotor1 = 0
 		let degMotor2 = 0
+		let rawMotor1 = 2047
+		let rawMotor2 = 2047
 		let activeMotor = 0
 		let pendingSwitch = false
 
@@ -301,13 +308,30 @@
 					try {
 						const data = JSON.parse(payload)
 
+						// Always store individual motor data
+						if (data.id == 1) {
+							degMotor1 = data.deg
+							rawMotor1 = data.raw
+						} else if (data.id == 2) {
+							degMotor2 = data.deg
+							rawMotor2 = data.raw
+						}
+
+						// Update status line with last received (or you can alternate)
 						document.getElementById("STSValue").innerHTML =
 							`ID: ${data.id} | Raw: ${data.raw} | ${data.deg}° | Нап: ${data.volt || '?'}V | Нав: ${data.load || '?'}% | Швид: ${data.speed || '?'} | Темп: ${data.temp || '?'}°C | Вст.швид: ${data.set_speed || '?'}`
-						document.getElementById("position-slider").value = data.raw
-						document.getElementById("current-pos").textContent = `Поточна позиція: ${data.deg}°`
 
-						if (data.id == 1) degMotor1 = data.deg
-						else if (data.id == 2) degMotor2 = data.deg
+						// In sync mode → average position for smoother slider & text animation
+						if (syncEnabled) {
+							const avgRaw = Math.round((rawMotor1 + rawMotor2) / 2)
+							const avgDeg = Math.round((degMotor1 + degMotor2) / 2)
+							document.getElementById("position-slider").value = avgRaw
+							document.getElementById("current-pos").textContent = `Поточна позиція: ${avgDeg}° (Sync)`
+						} else {
+							// Normal mode → show exact for active motor
+							document.getElementById("position-slider").value = data.raw
+							document.getElementById("current-pos").textContent = `Поточна позиція: ${data.deg}°`
+						}
 
 						// Do NOT change active motor when sync is ON
 						if (!syncEnabled && !pendingSwitch) {
@@ -382,7 +406,6 @@
 		function highlightActiveMotor() {
 			const btn1 = document.getElementById('motor1Btn')
 			const btn2 = document.getElementById('motor2Btn')
-			// Only show highlight if sync is OFF
 			if (syncEnabled) {
 				btn1.classList.remove('active')
 				btn2.classList.remove('active')
@@ -400,7 +423,6 @@
 			btn.style.background = syncEnabled ? "#4caf50" : "#0288d1"
 			sendCommand(99, syncEnabled ? 1 : 0)
 
-			// Immediately update highlights (remove when sync ON)
 			highlightActiveMotor()
 			updateMapDirection()
 		}
@@ -421,7 +443,7 @@
 			const raw = Math.round(2047 + (deg * 4095 / 360))
 
 			document.getElementById("position-slider").value = raw
-			document.getElementById("current-pos").textContent = `Поточна позиція: ${deg}°`
+			document.getElementById("current-pos").textContent = syncEnabled ? `Поточна позиція: ${deg}° (Sync)` : `Поточна позиція: ${deg}°`
 			if (activeMotor === 0) degMotor1 = deg
 			else degMotor2 = deg
 			updateMapDirection()
@@ -434,7 +456,7 @@
 			const newPos = parseInt(this.value)
 			const deg = Math.round((newPos - 2047) * 360 / 4095)
 
-			document.getElementById("current-pos").textContent = `Поточна позиція: ${deg}°`
+			document.getElementById("current-pos").textContent = syncEnabled ? `Поточна позиція: ${deg}° (Sync)` : `Поточна позиція: ${deg}°`
 			if (activeMotor === 0) degMotor1 = deg
 			else degMotor2 = deg
 			updateMapDirection()
@@ -487,7 +509,6 @@
 			arrowRed.setLatLngs(line1)
 			arrowBlue.setLatLngs(line2)
 
-			// REMOVE YELLOW HIGHLIGHT ENTIRELY WHEN SYNC IS ON
 			if (syncEnabled) {
 				outlineYellow1.setLatLngs([])
 				outlineYellow2.setLatLngs([])
