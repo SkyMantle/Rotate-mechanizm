@@ -109,15 +109,11 @@
 		#syncBtn {
 			background: #0288d1;
 			width: 170px !important;
-			/* ← FIXED WIDTH (increased to fit "Sync OFF" perfectly) */
 			min-width: 170px !important;
-			/* ← Backup */
 			max-width: 170px !important;
-			/* ← Force exact size */
 			text-align: center;
 			box-sizing: border-box;
 			padding: 12px 20px;
-			/* ← Adjusted padding to center text nicely */
 			flex-shrink: 0;
 		}
 
@@ -237,15 +233,14 @@
 	<div id="mainContent">
 		<h3>Польовик</h3>
 
-		<div class="STSValue" id="STSValue-motor1">Motor 1: Очікування даних сервоприводу...</div>
-		<div class="STSValue" id="STSValue-motor2">Motor 2: Очікування даних сервоприводу...</div>
+		<div class="STSValue" id="STSValue-motor1">Лівий: Очікування даних сервоприводу...</div>
+		<div class="STSValue" id="STSValue-motor2">Правий: Очікування даних сервоприводу...</div>
 
 		<div class="buttonContainer">
 			<div class="motorSelectContainer">
 				<button id="motor1Btn" onclick="switchMotor(0)">Ліва</button>
 				<button id="motor2Btn" onclick="switchMotor(1)">Права</button>
-				<button id="syncBtn" onclick="toggleSync()">Sync
-					OFF</button>
+				<button id="syncBtn" onclick="toggleSync()">Sync OFF</button>
 			</div>
 			<div class="motorControlContainer">
 				<button onmousedown="startMove(6)" onmouseup="stopMove()" ontouchstart="startMove(6)" ontouchend="stopMove()">
@@ -261,13 +256,15 @@
 		<div id="slider-container">
 			<input type="range" id="position-slider" min="0" max="4095" value="2047" step="any">
 		</div>
+
 		<div class="motorAzimuthContainer">
 			<p class="motor-pos" id="current-pos-motor1">Лівий: 0°</p>
 			<p class="motor-pos" id="current-pos-motor2">Правий: 0°</p>
 		</div>
+
 		<div style="margin:25px 0; text-align:center;">
-			<input type="number" id="degreeInput" min="-180" max="180" step="1" placeholder=""
-				title="Введіть градуси (-180..180)"
+			<input type="number" id="degreeInput" min="-50" max="50" step="0.1" placeholder=""
+				title="Введіть градуси (-50..+50)"
 				style="width:230px; padding:12px; font-size:18px; border-radius:8px; border:1px solid #555; background:#222; color:white;">
 			<button onclick="setDegree()"
 				style="padding:12px 30px; margin-left:12px; font-size:18px; background:#ff4444;">Перейти до градуса</button>
@@ -295,7 +292,7 @@
 
 		let syncEnabled = false
 		let pendingSync = false
-		let lastSingleActiveMotor = 0  // Remember last selected motor when sync was OFF
+		let lastSingleActiveMotor = 0
 
 		let map, marker, arrowRed, arrowBlue, outlineYellow1, outlineYellow2
 
@@ -346,13 +343,13 @@
 
 						if (data.id == 1) {
 							document.getElementById("STSValue-motor1").innerHTML =
-								`Motor 1 | ID: ${data.id} | Raw: ${data.raw} | ${data.deg}° | Нап: ${data.volt || '?'}V | Нав: ${data.load || '?'}% | Швид: ${data.speed || '?'} | Темп: ${data.temp || '?'}°C | Вст.швид: ${data.set_speed || '?'}`
-							document.getElementById("current-pos-motor1").textContent = `Motor 1: ${data.deg}°`
+								`Лівий | ID: ${data.id} | Raw: ${data.raw} | ${data.deg}° | Нап: ${data.volt || '?'}V | Нав: ${data.load || '?'}% | Швид: ${data.speed || '?'} | Темп: ${data.temp || '?'}°C | Вст.швид: ${data.set_speed || '?'}`
+							document.getElementById("current-pos-motor1").textContent = `Лівий: ${data.deg}°`
 							degMotor1 = data.deg
 						} else if (data.id == 2) {
 							document.getElementById("STSValue-motor2").innerHTML =
-								`Motor 2 | ID: ${data.id} | Raw: ${data.raw} | ${data.deg}° | Нап: ${data.volt || '?'}V | Нав: ${data.load || '?'}% | Швид: ${data.speed || '?'} | Темп: ${data.temp || '?'}°C | Вст.швид: ${data.set_speed || '?'}`
-							document.getElementById("current-pos-motor2").textContent = `Motor 2: ${data.deg}°`
+								`Правий | ID: ${data.id} | Raw: ${data.raw} | ${data.deg}° | Нап: ${data.volt || '?'}V | Нав: ${data.load || '?'}% | Швид: ${data.speed || '?'} | Темп: ${data.temp || '?'}°C | Вст.швид: ${data.set_speed || '?'}`
+							document.getElementById("current-pos-motor2").textContent = `Правий: ${data.deg}°`
 							degMotor2 = data.deg
 						}
 
@@ -367,9 +364,6 @@
 								highlightActiveMotor()
 							}
 						}
-
-						// No activeMotor update from status in single mode — only user click changes it
-						// This + remember/restore completely stops all bouncing
 
 						updateMapDirection()
 
@@ -425,7 +419,7 @@
 		function switchMotor(index) {
 			pendingSwitch = true
 			activeMotor = index
-			lastSingleActiveMotor = index  // Update remembered motor
+			lastSingleActiveMotor = index
 			sendCommand(10, index)
 			highlightActiveMotor()
 			updateMapDirection()
@@ -447,14 +441,12 @@
 		function toggleSync() {
 			pendingSync = true
 
-			// Remember last single motor before turning ON
 			if (!syncEnabled) {
 				lastSingleActiveMotor = activeMotor
 			}
 
 			syncEnabled = !syncEnabled
 
-			// When turning OFF — restore last single motor
 			if (!syncEnabled) {
 				activeMotor = lastSingleActiveMotor
 			}
@@ -480,25 +472,43 @@
 		function setDegree() {
 			const degInput = document.getElementById('degreeInput')
 			let deg = parseFloat(degInput.value)
-			if (isNaN(deg)) { alert('Введіть коректне число градусів'); return }
-			deg = Math.max(-180, Math.min(180, deg))
+
+			if (isNaN(deg)) {
+				alert('Введіть коректне число градусів')
+				return
+			}
+
+			// Restrict to ±50°
+			deg = Math.max(-50, Math.min(50, deg))
+
 			const raw = Math.round(2047 + (deg * 4095 / 360))
 
 			document.getElementById("position-slider").value = raw
 			degMotor1 = deg
-			degMotor2 = deg  // optimistic for both
+			degMotor2 = deg
 			updateMapDirection()
 
 			sendCommand(22, raw)
-			degInput.value = ''
+			degInput.value = deg  // show clamped value
 		}
 
 		document.getElementById('position-slider').addEventListener('input', function () {
-			const newPos = parseInt(this.value)
-			const deg = Math.round((newPos - 2047) * 360 / 4095)
+			let newPos = parseInt(this.value)
 
+			// Convert to degrees
+			let deg = Math.round((newPos - 2047) * 360 / 4095)
+
+			// Restrict to ±50°
+			deg = Math.max(-50, Math.min(50, deg))
+
+			// Convert back to raw
+			newPos = Math.round(2047 + (deg * 4095 / 360))
+
+			this.value = newPos  // clamp slider position
 			degMotor1 = deg
-			degMotor2 = deg  // optimistic for both
+			degMotor2 = deg
+			document.getElementById("current-pos-motor1").textContent = `Лівий: ${deg}°`
+			document.getElementById("current-pos-motor2").textContent = `Правий: ${deg}°`
 			updateMapDirection()
 
 			sendCommand(22, newPos)
