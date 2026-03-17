@@ -124,21 +124,30 @@
 		#slider-container {
 			margin: 25px 0;
 			text-align: center;
+			position: relative;
+		}
+
+		#setMiddleBtn {
+			background: #ff9800;
+			/* orange to stand out */
+			color: white;
+		}
+
+		#setMiddleBtn:hover {
+			background: #f57c00;
 		}
 
 		#position-slider {
 			width: 90%;
 			height: 14px;
-			background: linear-gradient(to right, #333, #4247b7, #333);
+			/* Increased gray zones: ~30% on each side */
+			background: linear-gradient(to right,
+					#444 0%, #444 30%,
+					#4247b7 40%, #4247b7 62%,
+					#444 70%, #444 100%);
 			border-radius: 10px;
 			appearance: none;
-		}
-
-		.motorAzimuthContainer {
-			display: flex;
-			justify-content: center;
-			gap: 40px;
-			margin-top: 12px;
+			outline: none;
 		}
 
 		#position-slider::-webkit-slider-thumb {
@@ -148,6 +157,13 @@
 			border-radius: 50%;
 			border: 4px solid white;
 			cursor: pointer;
+		}
+
+		.motorAzimuthContainer {
+			display: flex;
+			justify-content: center;
+			gap: 40px;
+			margin-top: 12px;
 		}
 
 		.motor-pos {
@@ -170,6 +186,23 @@
 			border: 2px solid #4247b7;
 			border-radius: 10px;
 			margin-top: 25px;
+		}
+
+		input[type="number"] {
+			width: 230px;
+			padding: 12px;
+			font-size: 18px;
+			border-radius: 8px;
+			border: 1px solid #555;
+			background: #222;
+			color: white;
+			-moz-appearance: textfield;
+		}
+
+		input[type="number"]::-webkit-outer-spin-button,
+		input[type="number"]::-webkit-inner-spin-button {
+			-webkit-appearance: none;
+			margin: 0;
 		}
 
 		input[type="text"],
@@ -243,13 +276,16 @@
 				<button id="syncBtn" onclick="toggleSync()">Sync OFF</button>
 			</div>
 			<div class="motorControlContainer">
-				<button onmousedown="startMove(6)" onmouseup="stopMove()" ontouchstart="startMove(6)" ontouchend="stopMove()">
-					<< </button>
-						<button onclick="sendCommand(1, activeMotor)">0°</button>
-						<button onmousedown="startMove(5)" onmouseup="stopMove()" ontouchstart="startMove(5)"
-							ontouchend="stopMove()">>></button>
-						<button onclick="sendCommand(7, activeMotor)">+</button>
-						<button onclick="sendCommand(8, activeMotor)">-</button>
+				<!-- <button onmousedown="startMove(6)" onmouseup="stopMove()" ontouchstart="startMove(6)" ontouchend="stopMove()">
+					<<< /button> -->
+				<button id="setMiddleBtn" onclick="setNewMiddle()">Set New 0°</button>
+				<button onclick="sendCommand(3, activeMotor)">Release</button>
+				<button onclick="sendCommand(4, activeMotor)">Torque</button>
+				<button onclick="sendCommand(1, activeMotor)">0°</button>
+				<!-- <button onmousedown="startMove(5)" onmouseup="stopMove()" ontouchstart="startMove(5)"
+							ontouchend="stopMove()">>></button> -->
+				<button onclick="sendCommand(7, activeMotor)">+</button>
+				<button onclick="sendCommand(8, activeMotor)">-</button>
 			</div>
 		</div>
 
@@ -263,8 +299,8 @@
 		</div>
 
 		<div style="margin:25px 0; text-align:center;">
-			<input type="number" id="degreeInput" min="-50" max="50" step="0.1" placeholder=""
-				title="Введіть градуси (-50..+50)"
+			<input type="number" id="degreeInput" min="-70" max="70" step="0.1" placeholder=""
+				title="Введіть градуси (-70..+70)"
 				style="width:230px; padding:12px; font-size:18px; border-radius:8px; border:1px solid #555; background:#222; color:white;">
 			<button onclick="setDegree()"
 				style="padding:12px 30px; margin-left:12px; font-size:18px; background:#ff4444;">Перейти до градуса</button>
@@ -353,7 +389,6 @@
 							degMotor2 = data.deg
 						}
 
-						// Server-driven sync state (with pending protection)
 						if (data.sync !== undefined && !pendingSync) {
 							const newSync = data.sync === true
 							if (newSync !== syncEnabled) {
@@ -462,6 +497,18 @@
 		}
 
 		function startMove(cmdT) {
+			// Strict restriction: check current deg of active motor
+			const currentDeg = activeMotor === 0 ? degMotor1 : degMotor2
+
+			if (cmdT === 5 && currentDeg >= 70) {
+				// Already at +50° — >> does nothing
+				return
+			}
+			if (cmdT === 6 && currentDeg <= -70) {
+				// Already at -50° — << does nothing
+				return
+			}
+
 			sendCommand(cmdT, 0)
 		}
 
@@ -479,7 +526,7 @@
 			}
 
 			// Restrict to ±50°
-			deg = Math.max(-50, Math.min(50, deg))
+			deg = Math.max(-70, Math.min(70, deg))
 
 			const raw = Math.round(2047 + (deg * 4095 / 360))
 
@@ -489,7 +536,34 @@
 			updateMapDirection()
 
 			sendCommand(22, raw)
-			degInput.value = deg  // show clamped value
+			degInput.value = deg
+		}
+
+		function setNewMiddle() {
+			// Send calibration command using cmdT=11 (as you confirmed)
+			// cmdI = current active motor index
+			// cmdA and cmdB = 0 (not needed for calibration)
+			sendCommand(11, 0)  // cmdT=11 triggers setMiddle() in firmware
+
+			// Optimistic reset: current position is now 0°
+			degMotor1 = 0
+			degMotor2 = 0
+
+			// Update UI positions immediately
+			document.getElementById("current-pos-motor1").textContent = `Лівий: 0°`
+			document.getElementById("current-pos-motor2").textContent = `Правий: 0°`
+
+			// Reset slider to visual middle
+			document.getElementById("position-slider").value = 2047
+
+			// Reset map arrows to straight forward (0° direction)
+			updateMapDirection()
+
+			// Visual feedback (orange button flashes green briefly)
+			const btn = document.getElementById('setMiddleBtn')
+			const originalBg = btn.style.background
+			btn.style.background = '#4caf50'
+			setTimeout(() => { btn.style.background = originalBg }, 500)
 		}
 
 		document.getElementById('position-slider').addEventListener('input', function () {
@@ -499,12 +573,12 @@
 			let deg = Math.round((newPos - 2047) * 360 / 4095)
 
 			// Restrict to ±50°
-			deg = Math.max(-50, Math.min(50, deg))
+			deg = Math.max(-70, Math.min(70, deg))
 
 			// Convert back to raw
 			newPos = Math.round(2047 + (deg * 4095 / 360))
 
-			this.value = newPos  // clamp slider position
+			this.value = newPos
 			degMotor1 = deg
 			degMotor2 = deg
 			document.getElementById("current-pos-motor1").textContent = `Лівий: ${deg}°`
