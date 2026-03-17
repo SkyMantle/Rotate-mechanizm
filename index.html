@@ -122,29 +122,14 @@
 		}
 
 		#slider-container {
-			margin: 25px 0;
+			margin: 2px 0;
 			text-align: center;
-			position: relative;
-		}
-
-		#setMiddleBtn {
-			background: #ff9800;
-			/* orange to stand out */
-			color: white;
-		}
-
-		#setMiddleBtn:hover {
-			background: #f57c00;
 		}
 
 		#position-slider {
-			width: 90%;
+			width: 65%;
 			height: 14px;
-			/* Increased gray zones: ~30% on each side */
-			background: linear-gradient(to right,
-					#444 0%, #444 30%,
-					#4247b7 40%, #4247b7 62%,
-					#444 70%, #444 100%);
+			background: linear-gradient(to right, #444 0%, #444 30%, #4247b7 30%, #4247b7 70%, #444 70%, #444 100%);
 			border-radius: 10px;
 			appearance: none;
 			outline: none;
@@ -161,9 +146,9 @@
 
 		.motorAzimuthContainer {
 			display: flex;
-			justify-content: center;
+			justify-content: space-around;
 			gap: 40px;
-			margin-top: 12px;
+			margin-top: 2px;
 		}
 
 		.motor-pos {
@@ -172,7 +157,14 @@
 			text-align: center;
 		}
 
+		.STSInfoContainer {
+			display: flex;
+			flex-direction: row;
+			justify-content: space-around;
+		}
+
 		.STSValue {
+			max-width: 40%;
 			font-size: 16px;
 			text-align: center;
 			margin: 10px 0;
@@ -188,7 +180,17 @@
 			margin-top: 25px;
 		}
 
-		input[type="number"] {
+		/* Separate azimuth inputs with active indication */
+		.azimuth-group {
+			display: flex;
+			flex-direction: row;
+			align-items: center;
+			gap: 6px;
+			justify-content: center;
+		}
+
+		.azimuth-input {
+			max-width: 60%;
 			width: 230px;
 			padding: 12px;
 			font-size: 18px;
@@ -197,10 +199,16 @@
 			background: #222;
 			color: white;
 			-moz-appearance: textfield;
+			transition: all 0.25s ease;
 		}
 
-		input[type="number"]::-webkit-outer-spin-button,
-		input[type="number"]::-webkit-inner-spin-button {
+		.azimuth-input.active {
+			border: 2px solid #ffff00 !important;
+			box-shadow: 0 0 15px #ffff00;
+		}
+
+		.azimuth-input::-webkit-outer-spin-button,
+		.azimuth-input::-webkit-inner-spin-button {
 			-webkit-appearance: none;
 			margin: 0;
 		}
@@ -265,10 +273,10 @@
 
 	<div id="mainContent">
 		<h3>Польовик</h3>
-
-		<div class="STSValue" id="STSValue-motor1">Лівий: Очікування даних сервоприводу...</div>
-		<div class="STSValue" id="STSValue-motor2">Правий: Очікування даних сервоприводу...</div>
-
+		<div class="STSInfoContainer">
+			<div class="STSValue" id="STSValue-motor1">Лівий: Очікування даних сервоприводу...</div>
+			<div class="STSValue" id="STSValue-motor2">Правий: Очікування даних сервоприводу...</div>
+		</div>
 		<div class="buttonContainer">
 			<div class="motorSelectContainer">
 				<button id="motor1Btn" onclick="switchMotor(0)">Ліва</button>
@@ -298,12 +306,20 @@
 			<p class="motor-pos" id="current-pos-motor2">Правий: 0°</p>
 		</div>
 
-		<div style="margin:25px 0; text-align:center;">
-			<input type="number" id="degreeInput" min="-70" max="70" step="0.1" placeholder=""
-				title="Введіть градуси (-70..+70)"
-				style="width:230px; padding:12px; font-size:18px; border-radius:8px; border:1px solid #555; background:#222; color:white;">
-			<button onclick="setDegree()"
-				style="padding:12px 30px; margin-left:12px; font-size:18px; background:#ff4444;">Перейти до градуса</button>
+		<!-- Separate inputs for each motor -->
+		<div
+			style="margin:2px 0; text-align:center; display:flex; flex-direction:row; justify-content: space-around; align-items:center; flex-wrap: wrap; gap:20px;">
+			<div class="azimuth-group">
+				<label for="degreeInput1" style="font-size:18px;"></label>
+				<input type="number" id="degreeInput1" min="-70" max="70" step="0.1" placeholder="градуси" class="azimuth-input"
+					data-motor="0">
+			</div>
+
+			<div class="azimuth-group">
+				<label for="degreeInput2" style="font-size:18px;"></label>
+				<input type="number" id="degreeInput2" min="-70" max="70" step="0.1" placeholder="градуси" class="azimuth-input"
+					data-motor="1">
+			</div>
 		</div>
 
 		<div id="map"></div>
@@ -397,6 +413,7 @@
 								btn.textContent = syncEnabled ? "Sync ON" : "Sync OFF"
 								btn.style.background = syncEnabled ? "#4caf50" : "#0288d1"
 								highlightActiveMotor()
+								updateActiveInput() // NEW
 							}
 						}
 
@@ -457,6 +474,7 @@
 			lastSingleActiveMotor = index
 			sendCommand(10, index)
 			highlightActiveMotor()
+			updateActiveInput()
 			updateMapDirection()
 			setTimeout(() => { pendingSwitch = false }, 1200)
 		}
@@ -470,6 +488,20 @@
 			} else {
 				btn1.classList.toggle('active', activeMotor === 0)
 				btn2.classList.toggle('active', activeMotor === 1)
+			}
+		}
+
+		// NEW: Highlight active input field
+		function updateActiveInput() {
+			const input1 = document.getElementById('degreeInput1')
+			const input2 = document.getElementById('degreeInput2')
+
+			if (syncEnabled) {
+				input1.classList.add('active')
+				input2.classList.add('active')
+			} else {
+				input1.classList.toggle('active', activeMotor === 0)
+				input2.classList.toggle('active', activeMotor === 1)
 			}
 		}
 
@@ -491,23 +523,17 @@
 			btn.style.background = syncEnabled ? "#4caf50" : "#0288d1"
 			sendCommand(99, syncEnabled ? 1 : 0)
 			highlightActiveMotor()
+			updateActiveInput()
 			updateMapDirection()
 
 			setTimeout(() => { pendingSync = false }, 1200)
 		}
 
 		function startMove(cmdT) {
-			// Strict restriction: check current deg of active motor
 			const currentDeg = activeMotor === 0 ? degMotor1 : degMotor2
 
-			if (cmdT === 5 && currentDeg >= 70) {
-				// Already at +50° — >> does nothing
-				return
-			}
-			if (cmdT === 6 && currentDeg <= -70) {
-				// Already at -50° — << does nothing
-				return
-			}
+			if (cmdT === 5 && currentDeg >= 70) return
+			if (cmdT === 6 && currentDeg <= -70) return
 
 			sendCommand(cmdT, 0)
 		}
@@ -516,27 +542,41 @@
 			sendCommand(2, 0)
 		}
 
-		function setDegree() {
-			const degInput = document.getElementById('degreeInput')
-			let deg = parseFloat(degInput.value)
+		// NEW: Send degree from specific input (shared for both)
+		function sendDegreeFromInput(inputEl) {
+			let deg = parseFloat(inputEl.value)
+			if (isNaN(deg)) return
 
-			if (isNaN(deg)) {
-				alert('Введіть коректне число градусів')
-				return
-			}
-
-			// Restrict to ±50°
-			deg = Math.max(-70, Math.min(70, deg))
-
+			const motorIndex = parseInt(inputEl.dataset.motor)
 			const raw = Math.round(2047 + (deg * 4095 / 360))
 
-			document.getElementById("position-slider").value = raw
-			degMotor1 = deg
-			degMotor2 = deg
-			updateMapDirection()
+			// Optimistic update
+			if (motorIndex === 0) degMotor1 = deg
+			else degMotor2 = deg
 
+			updateMapDirection()
 			sendCommand(22, raw)
-			degInput.value = deg
+
+			inputEl.value = '' // Clear after send
+		}
+
+		// NEW: Enter key support + clear
+		document.getElementById('degreeInput1').addEventListener('keypress', function (e) {
+			if (e.key === 'Enter') {
+				sendDegreeFromInput(this)
+			}
+		})
+
+		document.getElementById('degreeInput2').addEventListener('keypress', function (e) {
+			if (e.key === 'Enter') {
+				sendDegreeFromInput(this)
+			}
+		})
+
+		// Keep old setDegree as fallback if needed (now optional)
+		function setDegree() {
+			const degInput = document.getElementById('degreeInput1') // fallback to first
+			sendDegreeFromInput(degInput)
 		}
 
 		function setNewMiddle() {
@@ -568,23 +608,15 @@
 
 		document.getElementById('position-slider').addEventListener('input', function () {
 			let newPos = parseInt(this.value)
-
-			// Convert to degrees
 			let deg = Math.round((newPos - 2047) * 360 / 4095)
-
-			// Restrict to ±50°
 			deg = Math.max(-70, Math.min(70, deg))
-
-			// Convert back to raw
 			newPos = Math.round(2047 + (deg * 4095 / 360))
-
 			this.value = newPos
 			degMotor1 = deg
 			degMotor2 = deg
 			document.getElementById("current-pos-motor1").textContent = `Лівий: ${deg}°`
 			document.getElementById("current-pos-motor2").textContent = `Правий: ${deg}°`
 			updateMapDirection()
-
 			sendCommand(22, newPos)
 		})
 
@@ -647,6 +679,7 @@
 
 			initMap()
 			highlightActiveMotor()
+			updateActiveInput()
 
 			const savedMqttUser = localStorage.getItem('mqttUser')
 			const savedMqttPass = localStorage.getItem('mqttPass')
