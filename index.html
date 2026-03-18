@@ -284,14 +284,10 @@
 				<button id="syncBtn" onclick="toggleSync()">Sync OFF</button>
 			</div>
 			<div class="motorControlContainer">
-				<!-- <button onmousedown="startMove(6)" onmouseup="stopMove()" ontouchstart="startMove(6)" ontouchend="stopMove()">
-					<<< /button> -->
 				<button id="setMiddleBtn" onclick="setNewMiddle()">Set New 0°</button>
 				<button onclick="sendCommand(3, activeMotor)">Release</button>
 				<button onclick="sendCommand(4, activeMotor)">Torque</button>
 				<button onclick="sendCommand(1, activeMotor)">0°</button>
-				<!-- <button onmousedown="startMove(5)" onmouseup="stopMove()" ontouchstart="startMove(5)"
-							ontouchend="stopMove()">>></button> -->
 				<button onclick="sendCommand(7, activeMotor)">+</button>
 				<button onclick="sendCommand(8, activeMotor)">-</button>
 			</div>
@@ -376,9 +372,23 @@
 						if (data.status === 'success') {
 							authToken = data.token
 							localStorage.setItem('servoAuthToken', authToken)
+
+							// NEW: Save ALL login fields after successful auth
+							localStorage.setItem('savedUsername', document.getElementById('username').value.trim())
+							localStorage.setItem('savedPassword', document.getElementById('password').value.trim())
+							localStorage.setItem('savedMqttUser', document.getElementById('mqttUser').value.trim())
+							localStorage.setItem('savedMqttPass', document.getElementById('mqttPass').value.trim())
+
 							document.getElementById('loginScreen').style.display = 'none'
 							document.getElementById('mainContent').style.display = 'block'
 							document.getElementById('loginError').textContent = ''
+
+							// FIX: Force map redraw after main content is visible
+							setTimeout(() => {
+								if (map) {
+									map.invalidateSize()
+								}
+							}, 100)
 						} else {
 							document.getElementById('loginError').textContent = data.reason || 'Помилка авторизації'
 						}
@@ -681,13 +691,38 @@
 			highlightActiveMotor()
 			updateActiveInput()
 
-			const savedMqttUser = localStorage.getItem('mqttUser')
-			const savedMqttPass = localStorage.getItem('mqttPass')
+			// FIX: Force map redraw after init (in case content was hidden)
+			setTimeout(() => {
+				if (map) {
+					map.invalidateSize()
+				}
+			}, 300)
+
+			const savedUsername = localStorage.getItem('savedUsername')
+			const savedPassword = localStorage.getItem('savedPassword')
+			const savedMqttUser = localStorage.getItem('savedMqttUser')
+			const savedMqttPass = localStorage.getItem('savedMqttPass')
+			const savedAuthToken = localStorage.getItem('servoAuthToken')
+
+			if (savedUsername) document.getElementById('username').value = savedUsername
+			if (savedPassword) document.getElementById('password').value = savedPassword
+			if (savedMqttUser) document.getElementById('mqttUser').value = savedMqttUser
+			if (savedMqttPass) document.getElementById('mqttPass').value = savedMqttPass
+
+			// const savedMqttUser = localStorage.getItem('mqttUser')
+			// const savedMqttPass = localStorage.getItem('mqttPass')
 			if (savedMqttUser && savedMqttPass) {
 				connectMQTT(savedMqttUser, savedMqttPass)
 				if (authToken) {
 					document.getElementById('loginScreen').style.display = 'none'
 					document.getElementById('mainContent').style.display = 'block'
+
+					// FIX: Force map redraw AFTER main content is visible
+					setTimeout(() => {
+						if (map) {
+							map.invalidateSize()
+						}
+					}, 100)
 				}
 			}
 		};
