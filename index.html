@@ -74,7 +74,7 @@
 
 		button {
 			padding: 12px 24px;
-			font-size: 18px;
+			font-size: 14px;
 			background: #4247b7;
 			color: white;
 			border: none;
@@ -165,7 +165,8 @@
 
 		.STSValue {
 			max-width: 40%;
-			font-size: 16px;
+			height: 70px;
+			font-size: 14px;
 			text-align: center;
 			margin: 10px 0;
 			padding: 10px;
@@ -258,8 +259,9 @@
 		.correction-toggle {
 			display: flex;
 			align-items: center;
+			justify-content: center;
 			gap: 8px;
-			font-size: 16px;
+			font-size: 12px;
 			margin: 10px 0;
 		}
 	</style>
@@ -320,14 +322,15 @@
 			style="margin:2px 0; text-align:center; display:flex; flex-direction:row; justify-content: space-around; align-items:center; flex-wrap: wrap; gap:20px;">
 			<div class="azimuth-group">
 				<label for="degreeInput1" style="font-size:18px;"></label>
-				<input type="number" id="degreeInput1" min="-70" max="70" step="0.1" placeholder="градуси" class="azimuth-input"
-					data-motor="0">
+				<input type="number" id="degreeInput1" min="-77" max="77" step="0.1" placeholder="градуси" class="azimuth-input"
+					data-motor="0" oninput="validateAzimuth(this)">
+
 			</div>
 
 			<div class="azimuth-group">
 				<label for="degreeInput2" style="font-size:18px;"></label>
-				<input type="number" id="degreeInput2" min="-70" max="70" step="0.1" placeholder="градуси" class="azimuth-input"
-					data-motor="1">
+				<input type="number" id="degreeInput2" min="-77" max="77" step="0.1" placeholder="градуси" class="azimuth-input"
+					data-motor="1" oninput="validateAzimuth(this)">
 			</div>
 		</div>
 
@@ -359,6 +362,23 @@
 
 		const CORRECTION = 7
 		let useCorrection = true  // стан перемикача
+
+		function validateAzimuth(input) {
+			let val = input.value.trim()
+
+			// Дозволяємо тимчасово вводити мінус і крапку
+			if (val === '' || val === '-' || val === '-.' || val === '.') return
+
+			let num = parseFloat(val)
+			if (isNaN(num)) {
+				input.value = ''
+				return
+			}
+
+			// Обмежуємо ±77
+			if (num > 77) input.value = 77
+			if (num < -77) input.value = -77
+		}
 
 		function connectMQTT(mqttUser, mqttPass) {
 			mqttClient = mqtt.connect(MQTT_BROKER, {
@@ -560,8 +580,8 @@
 		function startMove(cmdT) {
 			const currentDeg = activeMotor === 0 ? degMotor1 : degMotor2
 
-			if (cmdT === 5 && currentDeg >= 70) return
-			if (cmdT === 6 && currentDeg <= -70) return
+			if (cmdT === 5 && currentDeg >= 77) return
+			if (cmdT === 6 && currentDeg <= -77) return
 
 			sendCommand(cmdT, 0)
 		}
@@ -574,9 +594,13 @@
 			let deg = parseFloat(inputEl.value)
 			if (isNaN(deg)) return
 
-			const motorIndex = parseInt(inputEl.dataset.motor)
-			const raw = Math.round(2047 + (deg * 4095 / 360))
+			// Обмежуємо ±77
+			deg = Math.max(-77, Math.min(77, deg))
 
+			const correctedDeg = deg + CORRECTION
+			const raw = Math.round(2047 + (correctedDeg * 4095 / 360))
+
+			const motorIndex = parseInt(inputEl.dataset.motor)
 			if (motorIndex === 0) degMotor1 = deg
 			else degMotor2 = deg
 
@@ -586,17 +610,8 @@
 			inputEl.value = ''
 		}
 
-		document.getElementById('degreeInput1').addEventListener('keypress', function (e) {
-			if (e.key === 'Enter') {
-				sendDegreeFromInput(this)
-			}
-		})
-
-		document.getElementById('degreeInput2').addEventListener('keypress', function (e) {
-			if (e.key === 'Enter') {
-				sendDegreeFromInput(this)
-			}
-		})
+		document.getElementById('degreeInput1').addEventListener('keypress', e => { if (e.key === 'Enter') sendDegreeFromInput(e.target) })
+		document.getElementById('degreeInput2').addEventListener('keypress', e => { if (e.key === 'Enter') sendDegreeFromInput(e.target) })
 
 		function setNewMiddle() {
 			sendCommand(11, 0)
@@ -644,24 +659,36 @@
 		document.getElementById('position-slider').addEventListener('input', function () {
 			let newPos = parseInt(this.value)
 			let deg = Math.round((newPos - 2047) * 360 / 4095)
+			deg = Math.max(-77, Math.min(77, deg))
 
-			let displayDeg = deg
-			if (useCorrection) {
-				if (displayDeg < -1) displayDeg += CORRECTION
-				else if (displayDeg > 1) displayDeg -= CORRECTION
-			}
-
-			deg = Math.max(-70, Math.min(70, deg))
-			newPos = Math.round(2047 + (deg * 4095 / 360))
+			const correctedDeg = deg + CORRECTION
+			newPos = Math.round(2047 + (correctedDeg * 4095 / 360))
 
 			this.value = newPos
-			degMotor1 = displayDeg
-			degMotor2 = displayDeg
-			document.getElementById("current-pos-motor1").textContent = `Лівий: ${displayDeg.toFixed(1)}°`
-			document.getElementById("current-pos-motor2").textContent = `Правий: ${displayDeg.toFixed(1)}°`
+			degMotor1 = deg
+			degMotor2 = deg
+			document.getElementById("current-pos-motor1").textContent = `Лівий: ${deg.toFixed(1)}°`
+			document.getElementById("current-pos-motor2").textContent = `Правий: ${deg.toFixed(1)}°`
 			updateMapDirection()
 			sendCommand(22, newPos)
 		})
+
+		// function goToZero() {
+		// 	const currentDeg = activeMotor === 0 ? degMotor1 : degMotor2
+		// 	let targetDeg = 0
+		// 	if (currentDeg > 1) targetDeg = -7
+		// 	else if (currentDeg < -1) targetDeg = 7
+
+		// 	const raw = Math.round(2047 + (targetDeg * 4095 / 360))
+		// 	sendCommand(22, raw)
+
+		// 	if (activeMotor === 0) degMotor1 = 0
+		// 	else degMotor2 = 0
+
+		// 	document.getElementById("current-pos-motor1").textContent = `Лівий: 0°`
+		// 	document.getElementById("current-pos-motor2").textContent = `Правий: 0°`
+		// 	updateMapDirection()
+		// }
 
 		document.getElementById('correctionToggle').addEventListener('change', function () {
 			useCorrection = this.checked
@@ -749,7 +776,8 @@
 
 			if (savedMqttUser && savedMqttPass) {
 				connectMQTT(savedMqttUser, savedMqttPass)
-				if (authToken) {
+				if (savedAuthToken) {
+					authToken = savedAuthToken
 					document.getElementById('loginScreen').style.display = 'none'
 					document.getElementById('mainContent').style.display = 'block'
 
