@@ -180,7 +180,6 @@
 			margin-top: 25px;
 		}
 
-		/* Separate azimuth inputs with active indication */
 		.azimuth-group {
 			display: flex;
 			flex-direction: row;
@@ -254,6 +253,15 @@
 			background: #d32f2f;
 			font-size: 16px;
 		}
+
+		/* Стиль для перемикача корекції */
+		.correction-toggle {
+			display: flex;
+			align-items: center;
+			gap: 8px;
+			font-size: 16px;
+			margin: 10px 0;
+		}
 	</style>
 </head>
 
@@ -287,7 +295,7 @@
 				<button id="setMiddleBtn" onclick="setNewMiddle()">Set New 0°</button>
 				<button onclick="sendCommand(3, activeMotor)">Release</button>
 				<button onclick="sendCommand(4, activeMotor)">Torque</button>
-				<button onclick="sendCommand(1, activeMotor)">0°</button>
+				<button onclick="goToZero()">0°</button>
 				<button onclick="sendCommand(7, activeMotor)">+</button>
 				<button onclick="sendCommand(8, activeMotor)">-</button>
 			</div>
@@ -297,12 +305,17 @@
 			<input type="range" id="position-slider" min="0" max="4095" value="2047" step="any">
 		</div>
 
+		<!-- Перемикач корекції -->
+		<div class="correction-toggle">
+			<input type="checkbox" id="correctionToggle" checked>
+			<label for="correctionToggle">Корекція похибки ±7° (реальний азимут)</label>
+		</div>
+
 		<div class="motorAzimuthContainer">
 			<p class="motor-pos" id="current-pos-motor1">Лівий: 0°</p>
 			<p class="motor-pos" id="current-pos-motor2">Правий: 0°</p>
 		</div>
 
-		<!-- Separate inputs for each motor -->
 		<div
 			style="margin:2px 0; text-align:center; display:flex; flex-direction:row; justify-content: space-around; align-items:center; flex-wrap: wrap; gap:20px;">
 			<div class="azimuth-group">
@@ -344,6 +357,9 @@
 
 		let map, marker, arrowRed, arrowBlue, outlineYellow1, outlineYellow2
 
+		const CORRECTION = 7
+		let useCorrection = true  // стан перемикача
+
 		function connectMQTT(mqttUser, mqttPass) {
 			mqttClient = mqtt.connect(MQTT_BROKER, {
 				clientId: CLIENT_ID,
@@ -373,7 +389,6 @@
 							authToken = data.token
 							localStorage.setItem('servoAuthToken', authToken)
 
-							// NEW: Save ALL login fields after successful auth
 							localStorage.setItem('savedUsername', document.getElementById('username').value.trim())
 							localStorage.setItem('savedPassword', document.getElementById('password').value.trim())
 							localStorage.setItem('savedMqttUser', document.getElementById('mqttUser').value.trim())
@@ -383,11 +398,8 @@
 							document.getElementById('mainContent').style.display = 'block'
 							document.getElementById('loginError').textContent = ''
 
-							// FIX: Force map redraw after main content is visible
 							setTimeout(() => {
-								if (map) {
-									map.invalidateSize()
-								}
+								if (map) map.invalidateSize()
 							}, 100)
 						} else {
 							document.getElementById('loginError').textContent = data.reason || 'Помилка авторизації'
@@ -403,16 +415,23 @@
 
 						document.getElementById("position-slider").value = data.raw
 
+						// Корекція тільки якщо перемикач увімкнено
+						let displayDeg = data.deg
+						if (useCorrection) {
+							if (displayDeg < -1) displayDeg += CORRECTION
+							else if (displayDeg > 1) displayDeg -= CORRECTION
+						}
+
 						if (data.id == 1) {
 							document.getElementById("STSValue-motor1").innerHTML =
-								`Лівий | ID: ${data.id} | Raw: ${data.raw} | ${data.deg}° | Нап: ${data.volt || '?'}V | Нав: ${data.load || '?'}% | Швид: ${data.speed || '?'} | Темп: ${data.temp || '?'}°C | Вст.швид: ${data.set_speed || '?'}`
-							document.getElementById("current-pos-motor1").textContent = `Лівий: ${data.deg}°`
-							degMotor1 = data.deg
+								`Лівий | ID: ${data.id} | Raw: ${data.raw} | ${displayDeg.toFixed(1)}° | Нап: ${data.volt || '?'}V | Нав: ${data.load || '?'}% | Швид: ${data.speed || '?'} | Темп: ${data.temp || '?'}°C | Вст.швид: ${data.set_speed || '?'}`
+							document.getElementById("current-pos-motor1").textContent = `Лівий: ${displayDeg.toFixed(1)}°`
+							degMotor1 = displayDeg
 						} else if (data.id == 2) {
 							document.getElementById("STSValue-motor2").innerHTML =
-								`Правий | ID: ${data.id} | Raw: ${data.raw} | ${data.deg}° | Нап: ${data.volt || '?'}V | Нав: ${data.load || '?'}% | Швид: ${data.speed || '?'} | Темп: ${data.temp || '?'}°C | Вст.швид: ${data.set_speed || '?'}`
-							document.getElementById("current-pos-motor2").textContent = `Правий: ${data.deg}°`
-							degMotor2 = data.deg
+								`Правий | ID: ${data.id} | Raw: ${data.raw} | ${displayDeg.toFixed(1)}° | Нап: ${data.volt || '?'}V | Нав: ${data.load || '?'}% | Швид: ${data.speed || '?'} | Темп: ${data.temp || '?'}°C | Вст.швид: ${data.set_speed || '?'}`
+							document.getElementById("current-pos-motor2").textContent = `Правий: ${displayDeg.toFixed(1)}°`
+							degMotor2 = displayDeg
 						}
 
 						if (data.sync !== undefined && !pendingSync) {
@@ -423,7 +442,7 @@
 								btn.textContent = syncEnabled ? "Sync ON" : "Sync OFF"
 								btn.style.background = syncEnabled ? "#4caf50" : "#0288d1"
 								highlightActiveMotor()
-								updateActiveInput() // NEW
+								updateActiveInput()
 							}
 						}
 
@@ -501,7 +520,6 @@
 			}
 		}
 
-		// NEW: Highlight active input field
 		function updateActiveInput() {
 			const input1 = document.getElementById('degreeInput1')
 			const input2 = document.getElementById('degreeInput2')
@@ -552,7 +570,6 @@
 			sendCommand(2, 0)
 		}
 
-		// NEW: Send degree from specific input (shared for both)
 		function sendDegreeFromInput(inputEl) {
 			let deg = parseFloat(inputEl.value)
 			if (isNaN(deg)) return
@@ -560,17 +577,15 @@
 			const motorIndex = parseInt(inputEl.dataset.motor)
 			const raw = Math.round(2047 + (deg * 4095 / 360))
 
-			// Optimistic update
 			if (motorIndex === 0) degMotor1 = deg
 			else degMotor2 = deg
 
 			updateMapDirection()
 			sendCommand(22, raw)
 
-			inputEl.value = '' // Clear after send
+			inputEl.value = ''
 		}
 
-		// NEW: Enter key support + clear
 		document.getElementById('degreeInput1').addEventListener('keypress', function (e) {
 			if (e.key === 'Enter') {
 				sendDegreeFromInput(this)
@@ -583,57 +598,83 @@
 			}
 		})
 
-		// Keep old setDegree as fallback if needed (now optional)
-		function setDegree() {
-			const degInput = document.getElementById('degreeInput1') // fallback to first
-			sendDegreeFromInput(degInput)
-		}
-
 		function setNewMiddle() {
-			// Send calibration command using cmdT=11 (as you confirmed)
-			// cmdI = current active motor index
-			// cmdA and cmdB = 0 (not needed for calibration)
-			sendCommand(11, 0)  // cmdT=11 triggers setMiddle() in firmware
+			sendCommand(11, 0)
 
-			// Optimistic reset: current position is now 0°
 			degMotor1 = 0
 			degMotor2 = 0
 
-			// Update UI positions immediately
 			document.getElementById("current-pos-motor1").textContent = `Лівий: 0°`
 			document.getElementById("current-pos-motor2").textContent = `Правий: 0°`
 
-			// Reset slider to visual middle
 			document.getElementById("position-slider").value = 2047
 
-			// Reset map arrows to straight forward (0° direction)
 			updateMapDirection()
 
-			// Visual feedback (orange button flashes green briefly)
 			const btn = document.getElementById('setMiddleBtn')
 			const originalBg = btn.style.background
 			btn.style.background = '#4caf50'
 			setTimeout(() => { btn.style.background = originalBg }, 500)
 		}
 
+		// НОВА ФУНКЦІЯ: розумна кнопка 0° з корекцією
+		function goToZero() {
+			const currentDeg = activeMotor === 0 ? degMotor1 : degMotor2
+			let targetDeg = 0
+
+			// Враховуємо поточний напрямок зміщення
+			if (currentDeg < -1) {
+				targetDeg = -CORRECTION // якщо зліва — ціль трохи лівіше
+			} else if (currentDeg > 1) {
+				targetDeg = CORRECTION  // якщо справа — ціль трохи правіше
+			}
+
+			const raw = Math.round(2047 + (targetDeg * 4095 / 360))
+			sendCommand(22, raw)
+
+			// Оптимістично обнуляємо відображення
+			if (activeMotor === 0) degMotor1 = 0
+			else degMotor2 = 0
+
+			document.getElementById("current-pos-motor1").textContent = `Лівий: 0°`
+			document.getElementById("current-pos-motor2").textContent = `Правий: 0°`
+			updateMapDirection()
+		}
+
 		document.getElementById('position-slider').addEventListener('input', function () {
 			let newPos = parseInt(this.value)
 			let deg = Math.round((newPos - 2047) * 360 / 4095)
+
+			let displayDeg = deg
+			if (useCorrection) {
+				if (displayDeg < -1) displayDeg += CORRECTION
+				else if (displayDeg > 1) displayDeg -= CORRECTION
+			}
+
 			deg = Math.max(-70, Math.min(70, deg))
 			newPos = Math.round(2047 + (deg * 4095 / 360))
+
 			this.value = newPos
-			degMotor1 = deg
-			degMotor2 = deg
-			document.getElementById("current-pos-motor1").textContent = `Лівий: ${deg}°`
-			document.getElementById("current-pos-motor2").textContent = `Правий: ${deg}°`
+			degMotor1 = displayDeg
+			degMotor2 = displayDeg
+			document.getElementById("current-pos-motor1").textContent = `Лівий: ${displayDeg.toFixed(1)}°`
+			document.getElementById("current-pos-motor2").textContent = `Правий: ${displayDeg.toFixed(1)}°`
 			updateMapDirection()
 			sendCommand(22, newPos)
 		})
 
+		document.getElementById('correctionToggle').addEventListener('change', function () {
+			useCorrection = this.checked
+			// Примусово оновити відображення (без запиту статусу)
+			updateMapDirection()
+		})
+
 		function logout() {
 			localStorage.removeItem('servoAuthToken')
-			localStorage.removeItem('mqttUser')
-			localStorage.removeItem('mqttPass')
+			localStorage.removeItem('savedUsername')
+			localStorage.removeItem('savedPassword')
+			localStorage.removeItem('savedMqttUser')
+			localStorage.removeItem('savedMqttPass')
 			location.reload()
 		}
 
@@ -691,11 +732,8 @@
 			highlightActiveMotor()
 			updateActiveInput()
 
-			// FIX: Force map redraw after init (in case content was hidden)
 			setTimeout(() => {
-				if (map) {
-					map.invalidateSize()
-				}
+				if (map) map.invalidateSize()
 			}, 300)
 
 			const savedUsername = localStorage.getItem('savedUsername')
@@ -709,19 +747,14 @@
 			if (savedMqttUser) document.getElementById('mqttUser').value = savedMqttUser
 			if (savedMqttPass) document.getElementById('mqttPass').value = savedMqttPass
 
-			// const savedMqttUser = localStorage.getItem('mqttUser')
-			// const savedMqttPass = localStorage.getItem('mqttPass')
 			if (savedMqttUser && savedMqttPass) {
 				connectMQTT(savedMqttUser, savedMqttPass)
 				if (authToken) {
 					document.getElementById('loginScreen').style.display = 'none'
 					document.getElementById('mainContent').style.display = 'block'
 
-					// FIX: Force map redraw AFTER main content is visible
 					setTimeout(() => {
-						if (map) {
-							map.invalidateSize()
-						}
+						if (map) map.invalidateSize()
 					}, 100)
 				}
 			}
