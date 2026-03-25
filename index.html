@@ -86,13 +86,13 @@
 			text-align: center;
 		}
 
-		#motor1Btn,
-		#motor2Btn {
+		#motor3Btn,
+		#motor4Btn {
 			transition: all 0.25s ease;
 		}
 
-		#motor1Btn.active,
-		#motor2Btn.active {
+		#motor3Btn.active,
+		#motor4Btn.active {
 			border: 1px solid #ffff00 !important;
 			box-shadow: 0 0 15px #ffff00;
 			background: #5a5fff;
@@ -106,7 +106,7 @@
 			background: #d32f2f;
 		}
 
-		#syncBtn {
+		#sync2Btn {
 			background: #0288d1;
 			width: 170px !important;
 			min-width: 170px !important;
@@ -117,7 +117,7 @@
 			flex-shrink: 0;
 		}
 
-		#syncBtn.on {
+		#sync2Btn.on {
 			background: #4caf50;
 		}
 
@@ -174,7 +174,7 @@
 			border-radius: 8px;
 		}
 
-		#map {
+		#map2 {
 			height: 320px;
 			border: 2px solid #4247b7;
 			border-radius: 10px;
@@ -275,17 +275,17 @@
 	<div id="mainContent">
 		<h3>Польовик</h3>
 		<div class="STSInfoContainer">
-			<div class="STSValue" id="STSValue-motor1">Лівий: Очікування даних сервоприводу...</div>
-			<div class="STSValue" id="STSValue-motor2">Правий: Очікування даних сервоприводу...</div>
+			<div class="STSValue" id="STSValue-motor3">Лівий: Очікування даних сервоприводу...</div>
+			<div class="STSValue" id="STSValue-motor4">Правий: Очікування даних сервоприводу...</div>
 		</div>
 		<div class="buttonContainer">
 			<div class="motorSelectContainer">
-				<button id="motor1Btn" onclick="switchMotor(0)">Ліва</button>
-				<button id="motor2Btn" onclick="switchMotor(1)">Права</button>
-				<button id="syncBtn" onclick="toggleSync()">Sync OFF</button>
+				<button id="motor3Btn" onclick="switchMotor(0)">Ліва</button>
+				<button id="motor4Btn" onclick="switchMotor(1)">Права</button>
+				<button id="sync2Btn" onclick="toggleSync()">Sync OFF</button>
 			</div>
 			<div class="motorControlContainer">
-				<button id="setMiddleBtn" onclick="setNewMiddle()">Set New 0°</button>
+				<button id="setMiddleBtn2" onclick="setNewMiddle()">Set New 0°</button>
 				<button onclick="sendCommand(3, activeMotor)">Release</button>
 				<button onclick="sendCommand(4, activeMotor)">Torque</button>
 				<button onclick="sendCommand(1, activeMotor)">0°</button>
@@ -294,32 +294,32 @@
 			</div>
 		</div>
 
-		<div id="slider-container">
-			<input type="range" id="position-slider" min="0" max="4095" value="2047" step="any">
+		<div id="slider-container2">
+			<input type="range" id="position-slider2" min="0" max="4095" value="2047" step="any">
 		</div>
 
 		<div class="motorAzimuthContainer">
-			<p class="motor-pos" id="current-pos-motor1">Лівий: 0°</p>
-			<p class="motor-pos" id="current-pos-motor2">Правий: 0°</p>
+			<p class="motor-pos" id="current-pos-motor3">Лівий: 0°</p>
+			<p class="motor-pos" id="current-pos-motor4">Правий: 0°</p>
 		</div>
 
 		<!-- Separate inputs for each motor -->
 		<div
 			style="margin:2px 0; text-align:center; display:flex; flex-direction:row; justify-content: space-around; align-items:center; flex-wrap: wrap; gap:20px;">
 			<div class="azimuth-group">
-				<label for="degreeInput1" style="font-size:18px;"></label>
-				<input type="number" id="degreeInput1" min="-70" max="70" step="0.1" placeholder="градуси" class="azimuth-input"
+				<label for="degreeInput3" style="font-size:18px;"></label>
+				<input type="number" id="degreeInput3" min="-77" max="77" step="0.1" placeholder="градуси" class="azimuth-input"
 					data-motor="0">
 			</div>
 
 			<div class="azimuth-group">
-				<label for="degreeInput2" style="font-size:18px;"></label>
-				<input type="number" id="degreeInput2" min="-70" max="70" step="0.1" placeholder="градуси" class="azimuth-input"
+				<label for="degreeInput4" style="font-size:18px;"></label>
+				<input type="number" id="degreeInput4" min="-77" max="77" step="0.1" placeholder="градуси" class="azimuth-input"
 					data-motor="1">
 			</div>
 		</div>
 
-		<div id="map"></div>
+		<div id="map2"></div>
 
 		<button id="logoutBtn" onclick="logout()">Вийти</button>
 	</div>
@@ -327,16 +327,16 @@
 	<script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
 	<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 	<script>
-		const MQTT_BROKER = 'wss://940d7f06dbf1455c841afb26f9c5cf1c.s1.eu.hivemq.cloud:8884/mqtt'
+		const MQTT_BROKER = 'wss://c57fd02a32a645b5b10ab4e7833a2fa6.s1.eu.hivemq.cloud:8884/mqtt'
 		const CLIENT_ID = 'web-client-' + Math.random().toString(16).substr(2, 8)
-		const BOARD = 1
+		const BOARD = 2
 
 		let authToken = localStorage.getItem('servoAuthToken') || ''
 		let mqttConnected = false
 		let mqttClient = null
 
-		let degMotor1 = 0
-		let degMotor2 = 0
+		let degMotor3 = 0
+		let degMotor4 = 0
 		let activeMotor = 0
 		let pendingSwitch = false
 
@@ -344,7 +344,7 @@
 		let pendingSync = false
 		let lastSingleActiveMotor = 0
 
-		let map, marker, arrowRed, arrowBlue, outlineYellow1, outlineYellow2
+		let map2, marker2, arrowRed2, arrowBlue2, outlineYellow3, outlineYellow4
 
 		function connectMQTT(mqttUser, mqttPass) {
 			mqttClient = mqtt.connect(MQTT_BROKER, {
@@ -385,10 +385,10 @@
 							document.getElementById('mainContent').style.display = 'block'
 							document.getElementById('loginError').textContent = ''
 
-							// FIX: Force map redraw after main content is visible
+							// FIX: Force map2 redraw after main content is visible
 							setTimeout(() => {
-								if (map) {
-									map.invalidateSize()
+								if (map2) {
+									map2.invalidateSize()
 								}
 							}, 100)
 						} else {
@@ -404,25 +404,25 @@
 						const data = JSON.parse(payload)
 						if (data.board && data.board !== BOARD) return
 
-						document.getElementById("position-slider").value = data.raw
+						document.getElementById("position-slider2").value = data.raw
 
-						if (data.id == 1) {
-							document.getElementById("STSValue-motor1").innerHTML =
+						if (data.id == 3) {
+							document.getElementById("STSValue-motor3").innerHTML =
 								`Лівий | ID: ${data.id} | Raw: ${data.raw} | ${data.deg}° | Нап: ${data.volt || '?'}V | Нав: ${data.load || '?'}% | Швид: ${data.speed || '?'} | Темп: ${data.temp || '?'}°C | Вст.швид: ${data.set_speed || '?'}`
-							document.getElementById("current-pos-motor1").textContent = `Лівий: ${data.deg}°`
-							degMotor1 = data.deg
-						} else if (data.id == 2) {
-							document.getElementById("STSValue-motor2").innerHTML =
+							document.getElementById("current-pos-motor3").textContent = `Лівий: ${data.deg}°`
+							degMotor3 = data.deg
+						} else if (data.id == 4) {
+							document.getElementById("STSValue-motor4").innerHTML =
 								`Правий | ID: ${data.id} | Raw: ${data.raw} | ${data.deg}° | Нап: ${data.volt || '?'}V | Нав: ${data.load || '?'}% | Швид: ${data.speed || '?'} | Темп: ${data.temp || '?'}°C | Вст.швид: ${data.set_speed || '?'}`
-							document.getElementById("current-pos-motor2").textContent = `Правий: ${data.deg}°`
-							degMotor2 = data.deg
+							document.getElementById("current-pos-motor4").textContent = `Правий: ${data.deg}°`
+							degMotor4 = data.deg
 						}
 
 						if (data.sync !== undefined && !pendingSync) {
 							const newSync = data.sync === true
 							if (newSync !== syncEnabled) {
 								syncEnabled = newSync
-								const btn = document.getElementById('syncBtn')
+								const btn = document.getElementById('sync2Btn')
 								btn.textContent = syncEnabled ? "Sync ON" : "Sync OFF"
 								btn.style.background = syncEnabled ? "#4caf50" : "#0288d1"
 								highlightActiveMotor()
@@ -430,7 +430,7 @@
 							}
 						}
 
-						updateMapDirection()
+						updateMap2()
 
 					} catch (e) {
 						console.error('Status parse error:', e)
@@ -488,33 +488,33 @@
 			sendCommand(10, index)
 			highlightActiveMotor()
 			updateActiveInput()
-			updateMapDirection()
+			updateMap2()
 			setTimeout(() => { pendingSwitch = false }, 1200)
 		}
 
 		function highlightActiveMotor() {
-			const btn1 = document.getElementById('motor1Btn')
-			const btn2 = document.getElementById('motor2Btn')
+			const btn3 = document.getElementById('motor3Btn')
+			const btn4 = document.getElementById('motor4Btn')
 			if (syncEnabled) {
-				btn1.classList.remove('active')
-				btn2.classList.remove('active')
+				btn3.classList.remove('active')
+				btn4.classList.remove('active')
 			} else {
-				btn1.classList.toggle('active', activeMotor === 0)
-				btn2.classList.toggle('active', activeMotor === 1)
+				btn3.classList.toggle('active', activeMotor === 0)
+				btn4.classList.toggle('active', activeMotor === 1)
 			}
 		}
 
 		// NEW: Highlight active input field
 		function updateActiveInput() {
-			const input1 = document.getElementById('degreeInput1')
-			const input2 = document.getElementById('degreeInput2')
+			const input3 = document.getElementById('degreeInput3')
+			const input4 = document.getElementById('degreeInput4')
 
 			if (syncEnabled) {
-				input1.classList.add('active')
-				input2.classList.add('active')
+				input3.classList.add('active')
+				input4.classList.add('active')
 			} else {
-				input1.classList.toggle('active', activeMotor === 0)
-				input2.classList.toggle('active', activeMotor === 1)
+				input3.classList.toggle('active', activeMotor === 0)
+				input4.classList.toggle('active', activeMotor === 1)
 			}
 		}
 
@@ -531,22 +531,22 @@
 				activeMotor = lastSingleActiveMotor
 			}
 
-			const btn = document.getElementById('syncBtn')
+			const btn = document.getElementById('sync2Btn')
 			btn.textContent = syncEnabled ? "Sync ON" : "Sync OFF"
 			btn.style.background = syncEnabled ? "#4caf50" : "#0288d1"
 			sendCommand(99, syncEnabled ? 1 : 0)
 			highlightActiveMotor()
 			updateActiveInput()
-			updateMapDirection()
+			updateMap2()
 
 			setTimeout(() => { pendingSync = false }, 1200)
 		}
 
 		function startMove(cmdT) {
-			const currentDeg = activeMotor === 0 ? degMotor1 : degMotor2
+			const currentDeg = activeMotor === 0 ? degMotor3 : degMotor4
 
-			if (cmdT === 5 && currentDeg >= 70) return
-			if (cmdT === 6 && currentDeg <= -70) return
+			if (cmdT === 5 && currentDeg >= 77) return
+			if (cmdT === 6 && currentDeg <= -77) return
 
 			sendCommand(cmdT, 0)
 		}
@@ -564,33 +564,28 @@
 			const raw = Math.round(2047 + (deg * 4095 / 360))
 
 			// Optimistic update
-			if (motorIndex === 0) degMotor1 = deg
-			else degMotor2 = deg
+			if (motorIndex === 0) degMotor3 = deg
+			else degMotor4 = deg
 
-			updateMapDirection()
+			updateMap2()
 			sendCommand(22, raw)
 
 			inputEl.value = '' // Clear after send
 		}
 
 		// NEW: Enter key support + clear
-		document.getElementById('degreeInput1').addEventListener('keypress', function (e) {
+		document.getElementById('degreeInput3').addEventListener('keypress', function (e) {
 			if (e.key === 'Enter') {
 				sendDegreeFromInput(this)
 			}
 		})
 
-		document.getElementById('degreeInput2').addEventListener('keypress', function (e) {
+		document.getElementById('degreeInput4').addEventListener('keypress', function (e) {
 			if (e.key === 'Enter') {
 				sendDegreeFromInput(this)
 			}
 		})
 
-		// Keep old setDegree as fallback if needed (now optional)
-		function setDegree() {
-			const degInput = document.getElementById('degreeInput1') // fallback to first
-			sendDegreeFromInput(degInput)
-		}
 
 		function setNewMiddle() {
 			// Send calibration command using cmdT=11 (as you confirmed)
@@ -599,37 +594,37 @@
 			sendCommand(11, 0)  // cmdT=11 triggers setMiddle() in firmware
 
 			// Optimistic reset: current position is now 0°
-			degMotor1 = 0
-			degMotor2 = 0
+			degMotor3 = 0
+			degMotor4 = 0
 
 			// Update UI positions immediately
-			document.getElementById("current-pos-motor1").textContent = `Лівий: 0°`
-			document.getElementById("current-pos-motor2").textContent = `Правий: 0°`
+			document.getElementById("current-pos-motor3").textContent = `Лівий: 0°`
+			document.getElementById("current-pos-motor4").textContent = `Правий: 0°`
 
 			// Reset slider to visual middle
-			document.getElementById("position-slider").value = 2047
+			document.getElementById("position-slider2").value = 2047
 
-			// Reset map arrows to straight forward (0° direction)
-			updateMapDirection()
+			// Reset map2 arrows to straight forward (0° direction)
+			updateMap2()
 
 			// Visual feedback (orange button flashes green briefly)
-			const btn = document.getElementById('setMiddleBtn')
+			const btn = document.getElementById('setMiddleBtn2')
 			const originalBg = btn.style.background
 			btn.style.background = '#4caf50'
 			setTimeout(() => { btn.style.background = originalBg }, 500)
 		}
 
-		document.getElementById('position-slider').addEventListener('input', function () {
+		document.getElementById('position-slider2').addEventListener('input', function () {
 			let newPos = parseInt(this.value)
 			let deg = Math.round((newPos - 2047) * 360 / 4095)
-			deg = Math.max(-70, Math.min(70, deg))
+			deg = Math.max(-77, Math.min(77, deg))
 			newPos = Math.round(2047 + (deg * 4095 / 360))
 			this.value = newPos
-			degMotor1 = deg
-			degMotor2 = deg
-			document.getElementById("current-pos-motor1").textContent = `Лівий: ${deg}°`
-			document.getElementById("current-pos-motor2").textContent = `Правий: ${deg}°`
-			updateMapDirection()
+			degMotor3 = deg
+			degMotor4 = deg
+			document.getElementById("current-pos-motor3").textContent = `Лівий: ${deg}°`
+			document.getElementById("current-pos-motor4").textContent = `Правий: ${deg}°`
+			updateMap2()
 			sendCommand(22, newPos)
 		})
 
@@ -640,28 +635,28 @@
 			location.reload()
 		}
 
-		function initMap() {
-			map = L.map('map').setView([48.904339, 37.605560], 10)
-			L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
-				attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors, SRTM | © <a href="https://opentopomap.org">OpenTopoMap</a> (CC-BY-SA)',
+		function initMap2() {
+			map2 = L.map2('map2').setView([48.904339, 37.605560], 10)
+			L.tileLayer('https://{s}.tile.opentopomap2.org/{z}/{x}/{y}.png', {
+				attribution: '© <a href="https://www.openstreetmap2.org/copyright">OpenStreetmap2</a> contributors, SRTM | © <a href="https://opentopomap2.org">OpenTopomap2</a> (CC-BY-SA)',
 				maxZoom: 17
-			}).addTo(map)
+			}).addTo(map2)
 
-			marker = L.marker([48.904339, 37.605560]).addTo(map)
+			marker2 = L.marker([48.904339, 37.605560]).addTo(map2)
 				.bindPopup('Польовик').openPopup()
 
-			outlineYellow1 = L.polyline([], { color: '#ffff00', weight: 14, opacity: 0.5 }).addTo(map)
-			outlineYellow2 = L.polyline([], { color: '#ffff00', weight: 14, opacity: 0.5 }).addTo(map)
+			outlineYellow3 = L.polyline([], { color: '#ffff00', weight: 14, opacity: 0.5 }).addTo(map2)
+			outlineYellow4 = L.polyline([], { color: '#ffff00', weight: 14, opacity: 0.5 }).addTo(map2)
 
-			arrowRed = L.polyline([], { color: 'red', weight: 8, opacity: 0.95 }).addTo(map)
-			arrowBlue = L.polyline([], { color: '#00aaff', weight: 6, opacity: 0.75, dashArray: '8, 8' }).addTo(map)
+			arrowRed2 = L.polyline([], { color: 'red', weight: 8, opacity: 0.95 }).addTo(map2)
+			arrowBlue2 = L.polyline([], { color: '#00aaff', weight: 6, opacity: 0.75, dashArray: '8, 8' }).addTo(map2)
 
-			updateMapDirection()
+			updateMap2()
 		}
 
-		function updateMapDirection() {
-			if (!map || !marker) return
-			const center = marker.getLatLng()
+		function updateMap2() {
+			if (!map2 || !marker2) return
+			const center = marker2.getLatLng()
 			const distance = 0.18
 
 			const createLine = (deg) => {
@@ -672,32 +667,32 @@
 				return [[center.lat, center.lng], [center.lat + dLat, center.lng + dLng]]
 			}
 
-			const line1 = createLine(degMotor1)
-			const line2 = createLine(degMotor2)
+			const line1 = createLine(degMotor3)
+			const line2 = createLine(degMotor4)
 
-			arrowRed.setLatLngs(line1)
-			arrowBlue.setLatLngs(line2)
+			arrowRed2.setLatLngs(line1)
+			arrowBlue2.setLatLngs(line2)
 
 			if (syncEnabled) {
-				outlineYellow1.setLatLngs([])
-				outlineYellow2.setLatLngs([])
+				outlineYellow3.setLatLngs([])
+				outlineYellow4.setLatLngs([])
 			} else {
-				outlineYellow1.setLatLngs(activeMotor === 0 ? line1 : [])
-				outlineYellow2.setLatLngs(activeMotor === 1 ? line2 : [])
+				outlineYellow3.setLatLngs(activeMotor === 0 ? line1 : [])
+				outlineYellow4.setLatLngs(activeMotor === 1 ? line2 : [])
 			}
 		}
 
 		window.onload = function () {
 			document.getElementById("position-slider").value = 2047
 
-			initMap()
+			initMap2()
 			highlightActiveMotor()
 			updateActiveInput()
 
-			// FIX: Force map redraw after init (in case content was hidden)
+			// FIX: Force map2 redraw after init (in case content was hidden)
 			setTimeout(() => {
-				if (map) {
-					map.invalidateSize()
+				if (map2) {
+					map2.invalidateSize()
 				}
 			}, 300)
 
@@ -720,10 +715,10 @@
 					document.getElementById('loginScreen').style.display = 'none'
 					document.getElementById('mainContent').style.display = 'block'
 
-					// FIX: Force map redraw AFTER main content is visible
+					// FIX: Force map2 redraw AFTER main content is visible
 					setTimeout(() => {
-						if (map) {
-							map.invalidateSize()
+						if (map2) {
+							map2.invalidateSize()
 						}
 					}, 100)
 				}
