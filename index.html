@@ -108,9 +108,6 @@
 			border-radius: 8px;
 			cursor: pointer;
 			min-width: 60px;
-			position: relative;
-			overflow: hidden;
-			text-align: center;
 		}
 
 		#motor1Btn.active,
@@ -410,6 +407,10 @@
 		let authToken2 = localStorage.getItem('servoAuthToken2') || ''
 		let mqttConnected1 = false
 		let mqttConnected2 = false
+		let lastStatusTime1 = 0
+		let lastStatusTime2 = 0
+		const STATUS_TIMEOUT = 10000   // 10 секунд без статусу = офлайн
+
 		let mqttClient1 = null
 		let mqttClient2 = null
 
@@ -444,25 +445,22 @@
 			document.querySelectorAll('.tab button').forEach(b => b.classList.remove('active'))
 			evt.currentTarget.classList.add('active')
 
-			// 🔥 Виправлення мапи Board 2
 			setTimeout(() => {
-				if (systemName === 'System1' && map1) {
-					map1.invalidateSize()
-					updateMap1()
-				}
-				if (systemName === 'System2' && map2) {
-					map2.invalidateSize()
-					updateMap2()
-				}
+				if (systemName === 'System1' && map1) { map1.invalidateSize(); updateMap1() }
+				if (systemName === 'System2' && map2) { map2.invalidateSize(); updateMap2() }
 			}, 150)
 		}
 
 		function updateConnectionStatus() {
-			document.getElementById('status1').innerHTML = mqttConnected1 ? '🟢' : '🔴'
-			document.getElementById('status2').innerHTML = mqttConnected2 ? '🟢' : '🔴'
+			const now = Date.now()
+			const online1 = mqttConnected1 && (lastStatusTime1 > 0) && (now - lastStatusTime1 < STATUS_TIMEOUT)
+			const online2 = mqttConnected2 && (lastStatusTime2 > 0) && (now - lastStatusTime2 < STATUS_TIMEOUT)
+
+			document.getElementById('status1').innerHTML = online1 ? '🟢' : '🔴'
+			document.getElementById('status2').innerHTML = online2 ? '🟢' : '🔴'
 		}
 
-		// ====================== MQTT СИСТЕМА 1 ======================
+		// ====================== MQTT ======================
 		function connectMQTT1(mqttUser, mqttPass) {
 			if (mqttClient1) mqttClient1.end()
 			mqttClient1 = mqtt.connect(BROKER1, {
@@ -480,30 +478,18 @@
 				mqttClient1.subscribe('Werden/auth/response/' + CLIENT_ID1)
 				mqttClient1.subscribe('Werden/status')
 
-				// 🔥 Автоматично відправляємо auth після підключення
 				const user = document.getElementById('username').value.trim()
 				const pass = document.getElementById('password').value.trim()
 				if (user && pass) {
-					const payload = JSON.stringify({ username: user, password: pass, clientId: CLIENT_ID1 })
-					mqttClient1.publish('Werden/auth/request', payload)
+					mqttClient1.publish('Werden/auth/request', JSON.stringify({ username: user, password: pass, clientId: CLIENT_ID1 }))
 				}
 			})
 
-			mqttClient1.on('offline', () => {
-				mqttConnected1 = false
-				console.log('❌ MQTT1 offline')
-				updateConnectionStatus()
-			})
-			mqttClient1.on('error', (err) => {
-				console.error('MQTT1 error:', err)
-				mqttConnected1 = false
-				updateConnectionStatus()
-			})
-
+			mqttClient1.on('offline', () => { mqttConnected1 = false; updateConnectionStatus() })
+			mqttClient1.on('error', () => { mqttConnected1 = false; updateConnectionStatus() })
 			mqttClient1.on('message', (topic, message) => handleMessage1(topic, message.toString()))
 		}
 
-		// ====================== MQTT СИСТЕМА 2 ======================
 		function connectMQTT2(mqttUser, mqttPass) {
 			if (mqttClient2) mqttClient2.end()
 			mqttClient2 = mqtt.connect(BROKER2, {
@@ -516,6 +502,7 @@
 
 			mqttClient2.on('connect', () => {
 				mqttConnected2 = true
+				lastStatusTime2 = 0
 				console.log('✅ MQTT2 connected')
 				updateConnectionStatus()
 				mqttClient2.subscribe('Werden/auth/response/' + CLIENT_ID2)
@@ -524,22 +511,20 @@
 				const user = document.getElementById('username').value.trim()
 				const pass = document.getElementById('password').value.trim()
 				if (user && pass) {
-					const payload = JSON.stringify({ username: user, password: pass, clientId: CLIENT_ID2 })
-					mqttClient2.publish('Werden/auth/request', payload)
+					mqttClient2.publish('Werden/auth/request', JSON.stringify({ username: user, password: pass, clientId: CLIENT_ID2 }))
 				}
 			})
 
 			mqttClient2.on('offline', () => {
 				mqttConnected2 = false
-				console.log('❌ MQTT2 offline')
+				lastStatusTime2 = 0
 				updateConnectionStatus()
 			})
-			mqttClient2.on('error', (err) => {
-				console.error('MQTT2 error:', err)
+			mqttClient2.on('error', () => {
 				mqttConnected2 = false
+				lastStatusTime2 = 0
 				updateConnectionStatus()
 			})
-
 			mqttClient2.on('message', (topic, message) => handleMessage2(topic, message.toString()))
 		}
 
@@ -549,22 +534,25 @@
 			if (topic === 'Werden/auth/response/' + CLIENT_ID1) {
 				try {
 					const data = JSON.parse(payload)
-					console.log('🔑 Auth response 1:', data)
 					if (data.status === 'success') {
 						authToken1 = data.token
 						localStorage.setItem('servoAuthToken1', authToken1)
 						document.getElementById('loginError').innerHTML += '<br>✅ Система 1 авторизована'
 						checkLoginComplete()
-					} else {
-						document.getElementById('loginError').innerHTML += `<br>❌ Система 1: ${data.message || data.error || 'невідома помилка'}`
 					}
 				} catch (e) { console.error('Auth1 parse error', e) }
 				return
 			}
+
 			if (topic === 'Werden/status') {
 				try {
 					const data = JSON.parse(payload)
 					if (data.board && data.board !== BOARD1) return
+
+					console.log('📡 Отримано статус від Board 1')
+					lastStatusTime1 = Date.now()
+					updateConnectionStatus()
+
 					document.getElementById("position-slider").value = data.raw
 					if (data.id == 1) {
 						document.getElementById("STSValue-motor1").innerHTML = `Лівий | ID: ${data.id} | Raw: ${data.raw} | ${data.deg}° | Нап: ${data.volt || '?'}V | Нав: ${data.load || '?'}% | Швид: ${data.speed || '?'} | Темп: ${data.temp || '?'}°C | Вст.швид: ${data.set_speed || '?'}`
@@ -596,22 +584,25 @@
 			if (topic === 'Werden/auth/response/' + CLIENT_ID2) {
 				try {
 					const data = JSON.parse(payload)
-					console.log('🔑 Auth response 2:', data)
 					if (data.status === 'success') {
 						authToken2 = data.token
 						localStorage.setItem('servoAuthToken2', authToken2)
 						document.getElementById('loginError').innerHTML += '<br>✅ Система 2 авторизована'
 						checkLoginComplete()
-					} else {
-						document.getElementById('loginError').innerHTML += `<br>❌ Система 2: ${data.message || data.error || 'невідома помилка'}`
 					}
 				} catch (e) { console.error('Auth2 parse error', e) }
 				return
 			}
+
 			if (topic === 'Werden/status') {
 				try {
 					const data = JSON.parse(payload)
 					if (data.board && data.board !== BOARD2) return
+
+					console.log('📡 Отримано статус від Board 2')
+					lastStatusTime2 = Date.now()
+					updateConnectionStatus()
+
 					document.getElementById("position-slider2").value = data.raw
 					if (data.id == 3) {
 						document.getElementById("STSValue-motor3").innerHTML = `Лівий | ID: ${data.id} | Raw: ${data.raw} | ${data.deg}° | Нап: ${data.volt || '?'}V | Нав: ${data.load || '?'}% | Швид: ${data.speed || '?'} | Темп: ${data.temp || '?'}°C | Вст.швид: ${data.set_speed || '?'}`
@@ -640,20 +631,14 @@
 
 		// ====================== КОМАНДИ ======================
 		function sendCommand1(cmdT, cmdA = 0, cmdB = 0) {
-			if (!authToken1 || !mqttConnected1) {
-				alert('Система 1 не авторизована або не підключена до MQTT')
-				return
-			}
+			if (!authToken1 || !mqttConnected1) { alert('Система 1 не авторизована або не підключена'); return }
 			const cmdI = (cmdT === 99 || cmdT === 10) ? 0 : activeMotor1
 			const payload = JSON.stringify({ token: authToken1, cmdT, cmdI, cmdA, cmdB, board: BOARD1 })
 			mqttClient1.publish('Werden/command', payload)
 		}
 
 		function sendCommand2(cmdT, cmdA = 0, cmdB = 0) {
-			if (!authToken2 || !mqttConnected2) {
-				alert('Система 2 не авторизована або не підключена до MQTT')
-				return
-			}
+			if (!authToken2 || !mqttConnected2) { alert('Система 2 не авторизована або не підключена'); return }
 			const cmdI = (cmdT === 99 || cmdT === 10) ? 0 : activeMotor2
 			const payload = JSON.stringify({ token: authToken2, cmdT, cmdI, cmdA, cmdB, board: BOARD2 })
 			mqttClient2.publish('Werden/command', payload)
@@ -662,7 +647,7 @@
 		// ====================== ПЕРЕХІД У ПАНЕЛЬ ======================
 		function checkLoginComplete() {
 			if (authToken1 || authToken2) {
-				console.log('🎉 Панель відкрито (принаймні одна система)')
+				console.log('🎉 Панель відкрито')
 				document.getElementById('loginScreen').style.display = 'none'
 				document.getElementById('mainContent').style.display = 'block'
 				setTimeout(() => {
@@ -843,9 +828,7 @@
 		// ====================== КАРТИ ======================
 		function initMap1() {
 			map1 = L.map('map').setView([48.904339, 37.605560], 10)
-			L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
-				attribution: '© OpenStreetMap contributors, SRTM | © OpenTopoMap (CC-BY-SA)'
-			}).addTo(map1)
+			L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap contributors, SRTM | © OpenTopoMap (CC-BY-SA)' }).addTo(map1)
 			marker1 = L.marker([48.904339, 37.605560]).addTo(map1).bindPopup('Польовик 1').openPopup()
 			outlineYellow1_1 = L.polyline([], { color: '#ffff00', weight: 14, opacity: 0.5 }).addTo(map1)
 			outlineYellow1_2 = L.polyline([], { color: '#ffff00', weight: 14, opacity: 0.5 }).addTo(map1)
@@ -879,9 +862,7 @@
 
 		function initMap2() {
 			map2 = L.map('map2').setView([48.904339, 37.605560], 10)
-			L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
-				attribution: '© OpenStreetMap contributors, SRTM | © OpenTopoMap (CC-BY-SA)'
-			}).addTo(map2)
+			L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap contributors, SRTM | © OpenTopoMap (CC-BY-SA)' }).addTo(map2)
 			marker2 = L.marker([48.904339, 37.605560]).addTo(map2).bindPopup('Польовик 2').openPopup()
 			outlineYellow2_1 = L.polyline([], { color: '#ffff00', weight: 14, opacity: 0.5 }).addTo(map2)
 			outlineYellow2_2 = L.polyline([], { color: '#ffff00', weight: 14, opacity: 0.5 }).addTo(map2)
@@ -920,7 +901,6 @@
 			const mqttUser = document.getElementById('mqttUser').value.trim()
 			const mqttPass = document.getElementById('mqttPass').value.trim()
 			const errorEl = document.getElementById('loginError')
-
 			if (!user || !pass) { errorEl.textContent = 'Введіть дані пристрою'; return }
 			if (!mqttUser || !mqttPass) { errorEl.textContent = 'Введіть MQTT username та password'; return }
 
@@ -928,7 +908,6 @@
 			connectMQTT1(mqttUser, mqttPass)
 			connectMQTT2(mqttUser, mqttPass)
 
-			// зберігаємо для наступних входів
 			localStorage.setItem('savedUsername', user)
 			localStorage.setItem('savedPassword', pass)
 			localStorage.setItem('savedMqttUser', mqttUser)
@@ -967,6 +946,9 @@
 			highlightActiveMotor2()
 			updateActiveInput1()
 			updateActiveInput2()
+
+			// 🔥 Автоматична перевірка статусу кожні 1.5 секунди
+			setInterval(updateConnectionStatus, 1500)
 
 			setTimeout(() => {
 				if (map1) map1.invalidateSize()
