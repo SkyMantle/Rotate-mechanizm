@@ -121,12 +121,12 @@
 			background: #4caf50;
 		}
 
-		#slider-container {
+		#slider-container2 {
 			margin: 2px 0;
 			text-align: center;
 		}
 
-		#position-slider {
+		#position-slider2 {
 			width: 65%;
 			height: 14px;
 			background: linear-gradient(to right, #444 0%, #444 30%, #4247b7 30%, #4247b7 70%, #444 70%, #444 100%);
@@ -135,7 +135,7 @@
 			outline: none;
 		}
 
-		#position-slider::-webkit-slider-thumb {
+		#position-slider2::-webkit-slider-thumb {
 			width: 44px;
 			height: 44px;
 			background: #ff494d;
@@ -636,9 +636,9 @@
 		}
 
 		function initMap2() {
-			map2 = L.map2('map2').setView([48.904339, 37.605560], 10)
-			L.tileLayer('https://{s}.tile.opentopomap2.org/{z}/{x}/{y}.png', {
-				attribution: '© <a href="https://www.openstreetmap2.org/copyright">OpenStreetmap2</a> contributors, SRTM | © <a href="https://opentopomap2.org">OpenTopomap2</a> (CC-BY-SA)',
+			map2 = L.map('map2').setView([48.904339, 37.605560], 10)
+			L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
+				attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetmap</a> contributors, SRTM | © <a href="https://opentopomap.org">OpenTopomap</a> (CC-BY-SA)',
 				maxZoom: 17
 			}).addTo(map2)
 
@@ -667,23 +667,20 @@
 				return [[center.lat, center.lng], [center.lat + dLat, center.lng + dLng]]
 			}
 
-			const line1 = createLine(degMotor3)
-			const line2 = createLine(degMotor4)
-
-			arrowRed2.setLatLngs(line1)
-			arrowBlue2.setLatLngs(line2)
+			arrowRed2.setLatLngs(createLine(degMotor3))
+			arrowBlue2.setLatLngs(createLine(degMotor4))
 
 			if (syncEnabled) {
 				outlineYellow3.setLatLngs([])
 				outlineYellow4.setLatLngs([])
 			} else {
-				outlineYellow3.setLatLngs(activeMotor === 0 ? line1 : [])
-				outlineYellow4.setLatLngs(activeMotor === 1 ? line2 : [])
+				outlineYellow3.setLatLngs(activeMotor === 0 ? createLine(degMotor3) : [])
+				outlineYellow4.setLatLngs(activeMotor === 1 ? createLine(degMotor4) : [])
 			}
 		}
 
 		window.onload = function () {
-			document.getElementById("position-slider").value = 2047
+			document.getElementById("position-slider2").value = 2047
 
 			initMap2()
 			highlightActiveMotor()
