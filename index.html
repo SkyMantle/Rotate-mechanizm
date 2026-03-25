@@ -2,7 +2,7 @@
 <html>
 
 <head>
-	<title>Польовик – Керування сервоприводом</title>
+	<title>Польовик – Керування двома механізмами</title>
 	<meta charset="UTF-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1">
 	<link rel="icon" href="data:,">
@@ -45,13 +45,44 @@
 		#mainContent {
 			display: none;
 			padding: 60px 20px 20px;
-			max-width: 600px;
+			max-width: 1200px;
 			margin: 0 auto;
 		}
 
 		h3 {
 			margin: 10px 0;
 			text-align: center;
+		}
+
+		.tab {
+			display: flex;
+			background: #111;
+			margin-bottom: 15px;
+			border-bottom: 3px solid #4247b7;
+		}
+
+		.tab button {
+			flex: 1;
+			padding: 18px;
+			background: #4247b7;
+			color: white;
+			border: none;
+			cursor: pointer;
+			font-size: 18px;
+			font-weight: bold;
+		}
+
+		.tab button.active {
+			background: #5a5fff;
+			border-bottom: 4px solid #ffff00;
+		}
+
+		.tabcontent {
+			display: none;
+		}
+
+		.tabcontent.active {
+			display: block;
 		}
 
 		.buttonContainer {
@@ -62,11 +93,7 @@
 			margin: 20px 0;
 		}
 
-		.motorSelectContainer {
-			display: flex;
-			gap: 12px;
-		}
-
+		.motorSelectContainer,
 		.motorControlContainer {
 			display: flex;
 			gap: 12px;
@@ -86,11 +113,8 @@
 			text-align: center;
 		}
 
-		#motor3Btn,
-		#motor4Btn {
-			transition: all 0.25s ease;
-		}
-
+		#motor1Btn.active,
+		#motor2Btn.active,
 		#motor3Btn.active,
 		#motor4Btn.active {
 			border: 1px solid #ffff00 !important;
@@ -106,6 +130,7 @@
 			background: #d32f2f;
 		}
 
+		#syncBtn,
 		#sync2Btn {
 			background: #0288d1;
 			width: 170px !important;
@@ -114,18 +139,20 @@
 			text-align: center;
 			box-sizing: border-box;
 			padding: 12px 20px;
-			flex-shrink: 0;
 		}
 
+		#syncBtn.on,
 		#sync2Btn.on {
 			background: #4caf50;
 		}
 
+		#slider-container,
 		#slider-container2 {
 			margin: 2px 0;
 			text-align: center;
 		}
 
+		#position-slider,
 		#position-slider2 {
 			width: 65%;
 			height: 14px;
@@ -135,6 +162,7 @@
 			outline: none;
 		}
 
+		#position-slider::-webkit-slider-thumb,
 		#position-slider2::-webkit-slider-thumb {
 			width: 44px;
 			height: 44px;
@@ -161,10 +189,11 @@
 			display: flex;
 			flex-direction: row;
 			justify-content: space-around;
+			flex-wrap: wrap;
 		}
 
 		.STSValue {
-			max-width: 40%;
+			max-width: 48%;
 			height: 70px;
 			font-size: 16px;
 			text-align: center;
@@ -174,6 +203,7 @@
 			border-radius: 8px;
 		}
 
+		#map,
 		#map2 {
 			height: 320px;
 			border: 2px solid #4247b7;
@@ -181,7 +211,6 @@
 			margin-top: 25px;
 		}
 
-		/* Separate azimuth inputs with active indication */
 		.azimuth-group {
 			display: flex;
 			flex-direction: row;
@@ -199,7 +228,6 @@
 			border: 1px solid #555;
 			background: #222;
 			color: white;
-			-moz-appearance: textfield;
 			transition: all 0.25s ease;
 		}
 
@@ -255,6 +283,12 @@
 			background: #d32f2f;
 			font-size: 16px;
 		}
+
+		#status1,
+		#status2 {
+			font-size: 18px;
+			margin-left: 8px;
+		}
 	</style>
 </head>
 
@@ -266,184 +300,620 @@
 		<h2>Польовик – Авторизація</h2>
 		<input type="text" id="username" placeholder="Ім'я користувача пристрою" autocomplete="off">
 		<input type="password" id="password" placeholder="Пароль пристрою" autocomplete="off">
-		<input type="text" id="mqttUser" placeholder="MQTT Username (наприклад web-guest)" autocomplete="off">
+		<input type="text" id="mqttUser" placeholder="MQTT Username" autocomplete="off">
 		<input type="password" id="mqttPass" placeholder="MQTT Password" autocomplete="off">
 		<button id="loginBtn" onclick="tryLogin()">Увійти</button>
 		<div id="loginError"></div>
 	</div>
 
 	<div id="mainContent">
-		<h3>Польовик</h3>
-		<div class="STSInfoContainer">
-			<div class="STSValue" id="STSValue-motor3">Лівий: Очікування даних сервоприводу...</div>
-			<div class="STSValue" id="STSValue-motor4">Правий: Очікування даних сервоприводу...</div>
+		<h3>Польовик – Керування двома механізмами</h3>
+
+		<div class="tab">
+			<button class="tablinks active" onclick="openSystem(event, 'System1')">Система 1 (Board 1) <span
+					id="status1">🔴</span></button>
+			<button class="tablinks" onclick="openSystem(event, 'System2')">Система 2 (Board 2) <span
+					id="status2">🔴</span></button>
 		</div>
-		<div class="buttonContainer">
-			<div class="motorSelectContainer">
-				<button id="motor3Btn" onclick="switchMotor(0)">Ліва</button>
-				<button id="motor4Btn" onclick="switchMotor(1)">Права</button>
-				<button id="sync2Btn" onclick="toggleSync()">Sync OFF</button>
+
+		<!-- СИСТЕМА 1 -->
+		<div id="System1" class="tabcontent active">
+			<div class="STSInfoContainer">
+				<div class="STSValue" id="STSValue-motor1">Лівий: Очікування даних сервоприводу...</div>
+				<div class="STSValue" id="STSValue-motor2">Правий: Очікування даних сервоприводу...</div>
 			</div>
-			<div class="motorControlContainer">
-				<button id="setMiddleBtn2" onclick="setNewMiddle()">Set New 0°</button>
-				<button onclick="sendCommand(3, activeMotor)">Release</button>
-				<button onclick="sendCommand(4, activeMotor)">Torque</button>
-				<button onclick="sendCommand(1, activeMotor)">0°</button>
-				<button onclick="sendCommand(7, activeMotor)">+</button>
-				<button onclick="sendCommand(8, activeMotor)">-</button>
+			<div class="buttonContainer">
+				<div class="motorSelectContainer">
+					<button id="motor1Btn" onclick="switchMotor1(0)">Ліва</button>
+					<button id="motor2Btn" onclick="switchMotor1(1)">Права</button>
+					<button id="syncBtn" onclick="toggleSync1()">Sync OFF</button>
+				</div>
+				<div class="motorControlContainer">
+					<button id="setMiddleBtn1" onclick="setNewMiddle1()">Set New 0°</button>
+					<button onclick="sendCommand1(3, activeMotor1)">Release</button>
+					<button onclick="sendCommand1(4, activeMotor1)">Torque</button>
+					<button onclick="sendCommand1(1, activeMotor1)">0°</button>
+					<button onclick="sendCommand1(7, activeMotor1)">+</button>
+					<button onclick="sendCommand1(8, activeMotor1)">-</button>
+				</div>
 			</div>
-		</div>
-
-		<div id="slider-container2">
-			<input type="range" id="position-slider2" min="0" max="4095" value="2047" step="any">
-		</div>
-
-		<div class="motorAzimuthContainer">
-			<p class="motor-pos" id="current-pos-motor3">Лівий: 0°</p>
-			<p class="motor-pos" id="current-pos-motor4">Правий: 0°</p>
-		</div>
-
-		<!-- Separate inputs for each motor -->
-		<div
-			style="margin:2px 0; text-align:center; display:flex; flex-direction:row; justify-content: space-around; align-items:center; flex-wrap: wrap; gap:20px;">
-			<div class="azimuth-group">
-				<label for="degreeInput3" style="font-size:18px;"></label>
-				<input type="number" id="degreeInput3" min="-77" max="77" step="0.1" placeholder="градуси" class="azimuth-input"
-					data-motor="0">
+			<div id="slider-container">
+				<input type="range" id="position-slider" min="0" max="4095" value="2047" step="any">
 			</div>
-
-			<div class="azimuth-group">
-				<label for="degreeInput4" style="font-size:18px;"></label>
-				<input type="number" id="degreeInput4" min="-77" max="77" step="0.1" placeholder="градуси" class="azimuth-input"
-					data-motor="1">
+			<div class="motorAzimuthContainer">
+				<p class="motor-pos" id="current-pos-motor1">Лівий: 0°</p>
+				<p class="motor-pos" id="current-pos-motor2">Правий: 0°</p>
 			</div>
+			<div
+				style="margin:2px 0; text-align:center; display:flex; flex-direction:row; justify-content: space-around; align-items:center; flex-wrap: wrap; gap:20px;">
+				<div class="azimuth-group">
+					<input type="number" id="degreeInput1" min="-70" max="70" step="0.1" placeholder="градуси"
+						class="azimuth-input" data-motor="0">
+				</div>
+				<div class="azimuth-group">
+					<input type="number" id="degreeInput2" min="-70" max="70" step="0.1" placeholder="градуси"
+						class="azimuth-input" data-motor="1">
+				</div>
+			</div>
+			<div id="map"></div>
 		</div>
 
-		<div id="map2"></div>
-
+		<!-- СИСТЕМА 2 -->
+		<div id="System2" class="tabcontent">
+			<div class="STSInfoContainer">
+				<div class="STSValue" id="STSValue-motor3">Лівий: Очікування даних сервоприводу...</div>
+				<div class="STSValue" id="STSValue-motor4">Правий: Очікування даних сервоприводу...</div>
+			</div>
+			<div class="buttonContainer">
+				<div class="motorSelectContainer">
+					<button id="motor3Btn" onclick="switchMotor2(0)">Ліва</button>
+					<button id="motor4Btn" onclick="switchMotor2(1)">Права</button>
+					<button id="sync2Btn" onclick="toggleSync2()">Sync OFF</button>
+				</div>
+				<div class="motorControlContainer">
+					<button id="setMiddleBtn2" onclick="setNewMiddle2()">Set New 0°</button>
+					<button onclick="sendCommand2(3, activeMotor2)">Release</button>
+					<button onclick="sendCommand2(4, activeMotor2)">Torque</button>
+					<button onclick="sendCommand2(1, activeMotor2)">0°</button>
+					<button onclick="sendCommand2(7, activeMotor2)">+</button>
+					<button onclick="sendCommand2(8, activeMotor2)">-</button>
+				</div>
+			</div>
+			<div id="slider-container2">
+				<input type="range" id="position-slider2" min="0" max="4095" value="2047" step="any">
+			</div>
+			<div class="motorAzimuthContainer">
+				<p class="motor-pos" id="current-pos-motor3">Лівий: 0°</p>
+				<p class="motor-pos" id="current-pos-motor4">Правий: 0°</p>
+			</div>
+			<div
+				style="margin:2px 0; text-align:center; display:flex; flex-direction:row; justify-content: space-around; align-items:center; flex-wrap: wrap; gap:20px;">
+				<div class="azimuth-group">
+					<input type="number" id="degreeInput3" min="-77" max="77" step="0.1" placeholder="градуси"
+						class="azimuth-input" data-motor="0">
+				</div>
+				<div class="azimuth-group">
+					<input type="number" id="degreeInput4" min="-77" max="77" step="0.1" placeholder="градуси"
+						class="azimuth-input" data-motor="1">
+				</div>
+			</div>
+			<div id="map2"></div>
+		</div>
 		<button id="logoutBtn" onclick="logout()">Вийти</button>
 	</div>
 
 	<script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
 	<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 	<script>
-		const MQTT_BROKER = 'wss://c57fd02a32a645b5b10ab4e7833a2fa6.s1.eu.hivemq.cloud:8884/mqtt'
-		const CLIENT_ID = 'web-client-' + Math.random().toString(16).substr(2, 8)
-		const BOARD = 2
+		// ====================== ГЛОБАЛЬНІ ЗМІННІ ======================
+		let authToken1 = localStorage.getItem('servoAuthToken1') || ''
+		let authToken2 = localStorage.getItem('servoAuthToken2') || ''
+		let mqttConnected1 = false
+		let mqttConnected2 = false
+		let mqttClient1 = null
+		let mqttClient2 = null
 
-		let authToken = localStorage.getItem('servoAuthToken') || ''
-		let mqttConnected = false
-		let mqttClient = null
+		const CLIENT_ID_BASE = 'web-client-' + Math.random().toString(16).substr(2, 8)
+		const CLIENT_ID1 = CLIENT_ID_BASE + '-sys1'
+		const CLIENT_ID2 = CLIENT_ID_BASE + '-sys2'
 
-		let degMotor3 = 0
-		let degMotor4 = 0
-		let activeMotor = 0
-		let pendingSwitch = false
+		// ====================== СИСТЕМА 1 ======================
+		const BROKER1 = 'wss://940d7f06dbf1455c841afb26f9c5cf1c.s1.eu.hivemq.cloud:8884/mqtt'
+		const BOARD1 = 1
+		let degMotor1 = 0, degMotor2 = 0
+		let activeMotor1 = 0
+		let syncEnabled1 = false
+		let pendingSync1 = false
+		let lastSingleActiveMotor1 = 0
+		let map1, marker1, arrowRed1, arrowBlue1, outlineYellow1_1, outlineYellow1_2
 
-		let syncEnabled = false
-		let pendingSync = false
-		let lastSingleActiveMotor = 0
+		// ====================== СИСТЕМА 2 ======================
+		const BROKER2 = 'wss://c57fd02a32a645b5b10ab4e7833a2fa6.s1.eu.hivemq.cloud:8884/mqtt'
+		const BOARD2 = 2
+		let degMotor3 = 0, degMotor4 = 0
+		let activeMotor2 = 0
+		let syncEnabled2 = false
+		let pendingSync2 = false
+		let lastSingleActiveMotor2 = 0
+		let map2, marker2, arrowRed2, arrowBlue2, outlineYellow2_1, outlineYellow2_2
 
-		let map2, marker2, arrowRed2, arrowBlue2, outlineYellow3, outlineYellow4
+		// ====================== ТАБИ ======================
+		function openSystem(evt, systemName) {
+			document.querySelectorAll('.tabcontent').forEach(el => el.classList.remove('active'))
+			document.getElementById(systemName).classList.add('active')
+			document.querySelectorAll('.tab button').forEach(b => b.classList.remove('active'))
+			evt.currentTarget.classList.add('active')
 
-		function connectMQTT(mqttUser, mqttPass) {
-			mqttClient = mqtt.connect(MQTT_BROKER, {
-				clientId: CLIENT_ID,
+			// 🔥 Виправлення мапи Board 2
+			setTimeout(() => {
+				if (systemName === 'System1' && map1) {
+					map1.invalidateSize()
+					updateMap1()
+				}
+				if (systemName === 'System2' && map2) {
+					map2.invalidateSize()
+					updateMap2()
+				}
+			}, 150)
+		}
+
+		function updateConnectionStatus() {
+			document.getElementById('status1').innerHTML = mqttConnected1 ? '🟢' : '🔴'
+			document.getElementById('status2').innerHTML = mqttConnected2 ? '🟢' : '🔴'
+		}
+
+		// ====================== MQTT СИСТЕМА 1 ======================
+		function connectMQTT1(mqttUser, mqttPass) {
+			if (mqttClient1) mqttClient1.end()
+			mqttClient1 = mqtt.connect(BROKER1, {
+				clientId: CLIENT_ID1,
 				username: mqttUser,
 				password: mqttPass,
 				clean: true,
 				reconnectPeriod: 5000
 			})
 
-			mqttClient.on('connect', () => {
-				mqttConnected = true
-				console.log('MQTT connected')
-				document.getElementById('loginError').textContent = 'Підключено до сервера'
+			mqttClient1.on('connect', () => {
+				mqttConnected1 = true
+				console.log('✅ MQTT1 connected')
+				updateConnectionStatus()
+				mqttClient1.subscribe('Werden/auth/response/' + CLIENT_ID1)
+				mqttClient1.subscribe('Werden/status')
 
-				mqttClient.subscribe('Werden/auth/response/' + CLIENT_ID)
-				mqttClient.subscribe('Werden/status')
-			})
-
-			mqttClient.on('message', (topic, message) => {
-				const payload = message.toString()
-				console.log('MQTT:', topic, payload)
-
-				if (topic === 'Werden/auth/response/' + CLIENT_ID) {
-					try {
-						const data = JSON.parse(payload)
-						if (data.status === 'success') {
-							authToken = data.token
-							localStorage.setItem('servoAuthToken', authToken)
-
-							// NEW: Save ALL login fields after successful auth
-							localStorage.setItem('savedUsername', document.getElementById('username').value.trim())
-							localStorage.setItem('savedPassword', document.getElementById('password').value.trim())
-							localStorage.setItem('savedMqttUser', document.getElementById('mqttUser').value.trim())
-							localStorage.setItem('savedMqttPass', document.getElementById('mqttPass').value.trim())
-
-							document.getElementById('loginScreen').style.display = 'none'
-							document.getElementById('mainContent').style.display = 'block'
-							document.getElementById('loginError').textContent = ''
-
-							// FIX: Force map2 redraw after main content is visible
-							setTimeout(() => {
-								if (map2) {
-									map2.invalidateSize()
-								}
-							}, 100)
-						} else {
-							document.getElementById('loginError').textContent = data.reason || 'Помилка авторизації'
-						}
-					} catch (e) {
-						document.getElementById('loginError').textContent = 'Неправильна відповідь сервера'
-					}
-				}
-
-				if (topic === 'Werden/status') {
-					try {
-						const data = JSON.parse(payload)
-						if (data.board && data.board !== BOARD) return
-
-						document.getElementById("position-slider2").value = data.raw
-
-						if (data.id == 3) {
-							document.getElementById("STSValue-motor3").innerHTML =
-								`Лівий | ID: ${data.id} | Raw: ${data.raw} | ${data.deg}° | Нап: ${data.volt || '?'}V | Нав: ${data.load || '?'}% | Швид: ${data.speed || '?'} | Темп: ${data.temp || '?'}°C | Вст.швид: ${data.set_speed || '?'}`
-							document.getElementById("current-pos-motor3").textContent = `Лівий: ${data.deg}°`
-							degMotor3 = data.deg
-						} else if (data.id == 4) {
-							document.getElementById("STSValue-motor4").innerHTML =
-								`Правий | ID: ${data.id} | Raw: ${data.raw} | ${data.deg}° | Нап: ${data.volt || '?'}V | Нав: ${data.load || '?'}% | Швид: ${data.speed || '?'} | Темп: ${data.temp || '?'}°C | Вст.швид: ${data.set_speed || '?'}`
-							document.getElementById("current-pos-motor4").textContent = `Правий: ${data.deg}°`
-							degMotor4 = data.deg
-						}
-
-						if (data.sync !== undefined && !pendingSync) {
-							const newSync = data.sync === true
-							if (newSync !== syncEnabled) {
-								syncEnabled = newSync
-								const btn = document.getElementById('sync2Btn')
-								btn.textContent = syncEnabled ? "Sync ON" : "Sync OFF"
-								btn.style.background = syncEnabled ? "#4caf50" : "#0288d1"
-								highlightActiveMotor()
-								updateActiveInput() // NEW
-							}
-						}
-
-						updateMap2()
-
-					} catch (e) {
-						console.error('Status parse error:', e)
-					}
+				// 🔥 Автоматично відправляємо auth після підключення
+				const user = document.getElementById('username').value.trim()
+				const pass = document.getElementById('password').value.trim()
+				if (user && pass) {
+					const payload = JSON.stringify({ username: user, password: pass, clientId: CLIENT_ID1 })
+					mqttClient1.publish('Werden/auth/request', payload)
 				}
 			})
 
-			mqttClient.on('error', (err) => {
-				console.error('MQTT error:', err)
-				document.getElementById('loginError').textContent = 'Помилка підключення до MQTT сервера'
+			mqttClient1.on('offline', () => {
+				mqttConnected1 = false
+				console.log('❌ MQTT1 offline')
+				updateConnectionStatus()
 			})
+			mqttClient1.on('error', (err) => {
+				console.error('MQTT1 error:', err)
+				mqttConnected1 = false
+				updateConnectionStatus()
+			})
+
+			mqttClient1.on('message', (topic, message) => handleMessage1(topic, message.toString()))
 		}
 
+		// ====================== MQTT СИСТЕМА 2 ======================
+		function connectMQTT2(mqttUser, mqttPass) {
+			if (mqttClient2) mqttClient2.end()
+			mqttClient2 = mqtt.connect(BROKER2, {
+				clientId: CLIENT_ID2,
+				username: mqttUser,
+				password: mqttPass,
+				clean: true,
+				reconnectPeriod: 5000
+			})
+
+			mqttClient2.on('connect', () => {
+				mqttConnected2 = true
+				console.log('✅ MQTT2 connected')
+				updateConnectionStatus()
+				mqttClient2.subscribe('Werden/auth/response/' + CLIENT_ID2)
+				mqttClient2.subscribe('Werden/status')
+
+				const user = document.getElementById('username').value.trim()
+				const pass = document.getElementById('password').value.trim()
+				if (user && pass) {
+					const payload = JSON.stringify({ username: user, password: pass, clientId: CLIENT_ID2 })
+					mqttClient2.publish('Werden/auth/request', payload)
+				}
+			})
+
+			mqttClient2.on('offline', () => {
+				mqttConnected2 = false
+				console.log('❌ MQTT2 offline')
+				updateConnectionStatus()
+			})
+			mqttClient2.on('error', (err) => {
+				console.error('MQTT2 error:', err)
+				mqttConnected2 = false
+				updateConnectionStatus()
+			})
+
+			mqttClient2.on('message', (topic, message) => handleMessage2(topic, message.toString()))
+		}
+
+		// ====================== ОБРОБКА ПОВІДОМЛЕНЬ ======================
+		function handleMessage1(topic, payload) {
+			console.log('📨 MQTT1 received:', topic, payload)
+			if (topic === 'Werden/auth/response/' + CLIENT_ID1) {
+				try {
+					const data = JSON.parse(payload)
+					console.log('🔑 Auth response 1:', data)
+					if (data.status === 'success') {
+						authToken1 = data.token
+						localStorage.setItem('servoAuthToken1', authToken1)
+						document.getElementById('loginError').innerHTML += '<br>✅ Система 1 авторизована'
+						checkLoginComplete()
+					} else {
+						document.getElementById('loginError').innerHTML += `<br>❌ Система 1: ${data.message || data.error || 'невідома помилка'}`
+					}
+				} catch (e) { console.error('Auth1 parse error', e) }
+				return
+			}
+			if (topic === 'Werden/status') {
+				try {
+					const data = JSON.parse(payload)
+					if (data.board && data.board !== BOARD1) return
+					document.getElementById("position-slider").value = data.raw
+					if (data.id == 1) {
+						document.getElementById("STSValue-motor1").innerHTML = `Лівий | ID: ${data.id} | Raw: ${data.raw} | ${data.deg}° | Нап: ${data.volt || '?'}V | Нав: ${data.load || '?'}% | Швид: ${data.speed || '?'} | Темп: ${data.temp || '?'}°C | Вст.швид: ${data.set_speed || '?'}`
+						document.getElementById("current-pos-motor1").textContent = `Лівий: ${data.deg}°`
+						degMotor1 = data.deg
+					} else if (data.id == 2) {
+						document.getElementById("STSValue-motor2").innerHTML = `Правий | ID: ${data.id} | Raw: ${data.raw} | ${data.deg}° | Нап: ${data.volt || '?'}V | Нав: ${data.load || '?'}% | Швид: ${data.speed || '?'} | Темп: ${data.temp || '?'}°C | Вст.швид: ${data.set_speed || '?'}`
+						document.getElementById("current-pos-motor2").textContent = `Правий: ${data.deg}°`
+						degMotor2 = data.deg
+					}
+					if (data.sync !== undefined && !pendingSync1) {
+						const newSync = data.sync === true
+						if (newSync !== syncEnabled1) {
+							syncEnabled1 = newSync
+							const btn = document.getElementById('syncBtn')
+							btn.textContent = syncEnabled1 ? "Sync ON" : "Sync OFF"
+							btn.style.background = syncEnabled1 ? "#4caf50" : "#0288d1"
+							highlightActiveMotor1()
+							updateActiveInput1()
+						}
+					}
+					updateMap1()
+				} catch (e) { console.error('Status1 parse error:', e) }
+			}
+		}
+
+		function handleMessage2(topic, payload) {
+			console.log('📨 MQTT2 received:', topic, payload)
+			if (topic === 'Werden/auth/response/' + CLIENT_ID2) {
+				try {
+					const data = JSON.parse(payload)
+					console.log('🔑 Auth response 2:', data)
+					if (data.status === 'success') {
+						authToken2 = data.token
+						localStorage.setItem('servoAuthToken2', authToken2)
+						document.getElementById('loginError').innerHTML += '<br>✅ Система 2 авторизована'
+						checkLoginComplete()
+					} else {
+						document.getElementById('loginError').innerHTML += `<br>❌ Система 2: ${data.message || data.error || 'невідома помилка'}`
+					}
+				} catch (e) { console.error('Auth2 parse error', e) }
+				return
+			}
+			if (topic === 'Werden/status') {
+				try {
+					const data = JSON.parse(payload)
+					if (data.board && data.board !== BOARD2) return
+					document.getElementById("position-slider2").value = data.raw
+					if (data.id == 3) {
+						document.getElementById("STSValue-motor3").innerHTML = `Лівий | ID: ${data.id} | Raw: ${data.raw} | ${data.deg}° | Нап: ${data.volt || '?'}V | Нав: ${data.load || '?'}% | Швид: ${data.speed || '?'} | Темп: ${data.temp || '?'}°C | Вст.швид: ${data.set_speed || '?'}`
+						document.getElementById("current-pos-motor3").textContent = `Лівий: ${data.deg}°`
+						degMotor3 = data.deg
+					} else if (data.id == 4) {
+						document.getElementById("STSValue-motor4").innerHTML = `Правий | ID: ${data.id} | Raw: ${data.raw} | ${data.deg}° | Нап: ${data.volt || '?'}V | Нав: ${data.load || '?'}% | Швид: ${data.speed || '?'} | Темп: ${data.temp || '?'}°C | Вст.швид: ${data.set_speed || '?'}`
+						document.getElementById("current-pos-motor4").textContent = `Правий: ${data.deg}°`
+						degMotor4 = data.deg
+					}
+					if (data.sync !== undefined && !pendingSync2) {
+						const newSync = data.sync === true
+						if (newSync !== syncEnabled2) {
+							syncEnabled2 = newSync
+							const btn = document.getElementById('sync2Btn')
+							btn.textContent = syncEnabled2 ? "Sync ON" : "Sync OFF"
+							btn.style.background = syncEnabled2 ? "#4caf50" : "#0288d1"
+							highlightActiveMotor2()
+							updateActiveInput2()
+						}
+					}
+					updateMap2()
+				} catch (e) { console.error('Status2 parse error:', e) }
+			}
+		}
+
+		// ====================== КОМАНДИ ======================
+		function sendCommand1(cmdT, cmdA = 0, cmdB = 0) {
+			if (!authToken1 || !mqttConnected1) {
+				alert('Система 1 не авторизована або не підключена до MQTT')
+				return
+			}
+			const cmdI = (cmdT === 99 || cmdT === 10) ? 0 : activeMotor1
+			const payload = JSON.stringify({ token: authToken1, cmdT, cmdI, cmdA, cmdB, board: BOARD1 })
+			mqttClient1.publish('Werden/command', payload)
+		}
+
+		function sendCommand2(cmdT, cmdA = 0, cmdB = 0) {
+			if (!authToken2 || !mqttConnected2) {
+				alert('Система 2 не авторизована або не підключена до MQTT')
+				return
+			}
+			const cmdI = (cmdT === 99 || cmdT === 10) ? 0 : activeMotor2
+			const payload = JSON.stringify({ token: authToken2, cmdT, cmdI, cmdA, cmdB, board: BOARD2 })
+			mqttClient2.publish('Werden/command', payload)
+		}
+
+		// ====================== ПЕРЕХІД У ПАНЕЛЬ ======================
+		function checkLoginComplete() {
+			if (authToken1 || authToken2) {
+				console.log('🎉 Панель відкрито (принаймні одна система)')
+				document.getElementById('loginScreen').style.display = 'none'
+				document.getElementById('mainContent').style.display = 'block'
+				setTimeout(() => {
+					if (map1) map1.invalidateSize()
+					if (map2) map2.invalidateSize()
+				}, 200)
+			}
+		}
+
+		// ====================== ЛОГІКА СИСТЕМИ 1 ======================
+		function switchMotor1(index) {
+			pendingSync1 = true
+			activeMotor1 = index
+			lastSingleActiveMotor1 = index
+			sendCommand1(10, index)
+			highlightActiveMotor1()
+			updateActiveInput1()
+			updateMap1()
+			setTimeout(() => { pendingSync1 = false }, 1200)
+		}
+		function highlightActiveMotor1() {
+			const btn1 = document.getElementById('motor1Btn')
+			const btn2 = document.getElementById('motor2Btn')
+			if (syncEnabled1) {
+				btn1.classList.remove('active')
+				btn2.classList.remove('active')
+			} else {
+				btn1.classList.toggle('active', activeMotor1 === 0)
+				btn2.classList.toggle('active', activeMotor1 === 1)
+			}
+		}
+		function updateActiveInput1() {
+			const input1 = document.getElementById('degreeInput1')
+			const input2 = document.getElementById('degreeInput2')
+			if (syncEnabled1) {
+				input1.classList.add('active')
+				input2.classList.add('active')
+			} else {
+				input1.classList.toggle('active', activeMotor1 === 0)
+				input2.classList.toggle('active', activeMotor1 === 1)
+			}
+		}
+		function toggleSync1() {
+			pendingSync1 = true
+			if (!syncEnabled1) lastSingleActiveMotor1 = activeMotor1
+			syncEnabled1 = !syncEnabled1
+			if (!syncEnabled1) activeMotor1 = lastSingleActiveMotor1
+			const btn = document.getElementById('syncBtn')
+			btn.textContent = syncEnabled1 ? "Sync ON" : "Sync OFF"
+			btn.style.background = syncEnabled1 ? "#4caf50" : "#0288d1"
+			sendCommand1(99, syncEnabled1 ? 1 : 0)
+			highlightActiveMotor1()
+			updateActiveInput1()
+			updateMap1()
+			setTimeout(() => { pendingSync1 = false }, 1200)
+		}
+		function setNewMiddle1() {
+			sendCommand1(11, 0)
+			degMotor1 = 0; degMotor2 = 0
+			document.getElementById("current-pos-motor1").textContent = `Лівий: 0°`
+			document.getElementById("current-pos-motor2").textContent = `Правий: 0°`
+			document.getElementById("position-slider").value = 2047
+			updateMap1()
+			const btn = document.getElementById('setMiddleBtn1')
+			const originalBg = btn.style.background
+			btn.style.background = '#4caf50'
+			setTimeout(() => { btn.style.background = originalBg }, 500)
+		}
+		function sendDegreeFromInput1(inputEl) {
+			let deg = parseFloat(inputEl.value)
+			if (isNaN(deg)) return
+			const motorIndex = parseInt(inputEl.dataset.motor)
+			const raw = Math.round(2047 + (deg * 4095 / 360))
+			if (motorIndex === 0) degMotor1 = deg; else degMotor2 = deg
+			updateMap1()
+			sendCommand1(22, raw)
+			inputEl.value = ''
+		}
+		document.getElementById('degreeInput1').addEventListener('keypress', function (e) { if (e.key === 'Enter') sendDegreeFromInput1(this) })
+		document.getElementById('degreeInput2').addEventListener('keypress', function (e) { if (e.key === 'Enter') sendDegreeFromInput1(this) })
+		document.getElementById('position-slider').addEventListener('input', function () {
+			let newPos = parseInt(this.value)
+			let deg = Math.round((newPos - 2047) * 360 / 4095)
+			deg = Math.max(-70, Math.min(70, deg))
+			newPos = Math.round(2047 + (deg * 4095 / 360))
+			this.value = newPos
+			degMotor1 = deg; degMotor2 = deg
+			document.getElementById("current-pos-motor1").textContent = `Лівий: ${deg}°`
+			document.getElementById("current-pos-motor2").textContent = `Правий: ${deg}°`
+			updateMap1()
+			sendCommand1(22, newPos)
+		})
+
+		// ====================== ЛОГІКА СИСТЕМИ 2 ======================
+		function switchMotor2(index) {
+			pendingSync2 = true
+			activeMotor2 = index
+			lastSingleActiveMotor2 = index
+			sendCommand2(10, index)
+			highlightActiveMotor2()
+			updateActiveInput2()
+			updateMap2()
+			setTimeout(() => { pendingSync2 = false }, 1200)
+		}
+		function highlightActiveMotor2() {
+			const btn3 = document.getElementById('motor3Btn')
+			const btn4 = document.getElementById('motor4Btn')
+			if (syncEnabled2) {
+				btn3.classList.remove('active')
+				btn4.classList.remove('active')
+			} else {
+				btn3.classList.toggle('active', activeMotor2 === 0)
+				btn4.classList.toggle('active', activeMotor2 === 1)
+			}
+		}
+		function updateActiveInput2() {
+			const input3 = document.getElementById('degreeInput3')
+			const input4 = document.getElementById('degreeInput4')
+			if (syncEnabled2) {
+				input3.classList.add('active')
+				input4.classList.add('active')
+			} else {
+				input3.classList.toggle('active', activeMotor2 === 0)
+				input4.classList.toggle('active', activeMotor2 === 1)
+			}
+		}
+		function toggleSync2() {
+			pendingSync2 = true
+			if (!syncEnabled2) lastSingleActiveMotor2 = activeMotor2
+			syncEnabled2 = !syncEnabled2
+			if (!syncEnabled2) activeMotor2 = lastSingleActiveMotor2
+			const btn = document.getElementById('sync2Btn')
+			btn.textContent = syncEnabled2 ? "Sync ON" : "Sync OFF"
+			btn.style.background = syncEnabled2 ? "#4caf50" : "#0288d1"
+			sendCommand2(99, syncEnabled2 ? 1 : 0)
+			highlightActiveMotor2()
+			updateActiveInput2()
+			updateMap2()
+			setTimeout(() => { pendingSync2 = false }, 1200)
+		}
+		function setNewMiddle2() {
+			sendCommand2(11, 0)
+			degMotor3 = 0; degMotor4 = 0
+			document.getElementById("current-pos-motor3").textContent = `Лівий: 0°`
+			document.getElementById("current-pos-motor4").textContent = `Правий: 0°`
+			document.getElementById("position-slider2").value = 2047
+			updateMap2()
+			const btn = document.getElementById('setMiddleBtn2')
+			const originalBg = btn.style.background
+			btn.style.background = '#4caf50'
+			setTimeout(() => { btn.style.background = originalBg }, 500)
+		}
+		function sendDegreeFromInput2(inputEl) {
+			let deg = parseFloat(inputEl.value)
+			if (isNaN(deg)) return
+			const motorIndex = parseInt(inputEl.dataset.motor)
+			const raw = Math.round(2047 + (deg * 4095 / 360))
+			if (motorIndex === 0) degMotor3 = deg; else degMotor4 = deg
+			updateMap2()
+			sendCommand2(22, raw)
+			inputEl.value = ''
+		}
+		document.getElementById('degreeInput3').addEventListener('keypress', function (e) { if (e.key === 'Enter') sendDegreeFromInput2(this) })
+		document.getElementById('degreeInput4').addEventListener('keypress', function (e) { if (e.key === 'Enter') sendDegreeFromInput2(this) })
+		document.getElementById('position-slider2').addEventListener('input', function () {
+			let newPos = parseInt(this.value)
+			let deg = Math.round((newPos - 2047) * 360 / 4095)
+			deg = Math.max(-77, Math.min(77, deg))
+			newPos = Math.round(2047 + (deg * 4095 / 360))
+			this.value = newPos
+			degMotor3 = deg; degMotor4 = deg
+			document.getElementById("current-pos-motor3").textContent = `Лівий: ${deg}°`
+			document.getElementById("current-pos-motor4").textContent = `Правий: ${deg}°`
+			updateMap2()
+			sendCommand2(22, newPos)
+		})
+
+		// ====================== КАРТИ ======================
+		function initMap1() {
+			map1 = L.map('map').setView([48.904339, 37.605560], 10)
+			L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
+				attribution: '© OpenStreetMap contributors, SRTM | © OpenTopoMap (CC-BY-SA)'
+			}).addTo(map1)
+			marker1 = L.marker([48.904339, 37.605560]).addTo(map1).bindPopup('Польовик 1').openPopup()
+			outlineYellow1_1 = L.polyline([], { color: '#ffff00', weight: 14, opacity: 0.5 }).addTo(map1)
+			outlineYellow1_2 = L.polyline([], { color: '#ffff00', weight: 14, opacity: 0.5 }).addTo(map1)
+			arrowRed1 = L.polyline([], { color: 'red', weight: 8, opacity: 0.95 }).addTo(map1)
+			arrowBlue1 = L.polyline([], { color: '#00aaff', weight: 6, opacity: 0.75, dashArray: '8, 8' }).addTo(map1)
+			updateMap1()
+		}
+		function updateMap1() {
+			if (!map1 || !marker1) return
+			const center = marker1.getLatLng()
+			const distance = 0.18
+			const createLine = (deg) => {
+				if (isNaN(deg)) return []
+				const rad = deg * Math.PI / 180
+				const dLat = distance * Math.cos(rad)
+				const dLng = distance * Math.sin(rad) / Math.cos(center.lat * Math.PI / 180)
+				return [[center.lat, center.lng], [center.lat + dLat, center.lng + dLng]]
+			}
+			const line1 = createLine(degMotor1)
+			const line2 = createLine(degMotor2)
+			arrowRed1.setLatLngs(line1)
+			arrowBlue1.setLatLngs(line2)
+			if (syncEnabled1) {
+				outlineYellow1_1.setLatLngs([])
+				outlineYellow1_2.setLatLngs([])
+			} else {
+				outlineYellow1_1.setLatLngs(activeMotor1 === 0 ? line1 : [])
+				outlineYellow1_2.setLatLngs(activeMotor1 === 1 ? line2 : [])
+			}
+		}
+
+		function initMap2() {
+			map2 = L.map('map2').setView([48.904339, 37.605560], 10)
+			L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
+				attribution: '© OpenStreetMap contributors, SRTM | © OpenTopoMap (CC-BY-SA)'
+			}).addTo(map2)
+			marker2 = L.marker([48.904339, 37.605560]).addTo(map2).bindPopup('Польовик 2').openPopup()
+			outlineYellow2_1 = L.polyline([], { color: '#ffff00', weight: 14, opacity: 0.5 }).addTo(map2)
+			outlineYellow2_2 = L.polyline([], { color: '#ffff00', weight: 14, opacity: 0.5 }).addTo(map2)
+			arrowRed2 = L.polyline([], { color: 'red', weight: 8, opacity: 0.95 }).addTo(map2)
+			arrowBlue2 = L.polyline([], { color: '#00aaff', weight: 6, opacity: 0.75, dashArray: '8, 8' }).addTo(map2)
+			updateMap2()
+		}
+		function updateMap2() {
+			if (!map2 || !marker2) return
+			const center = marker2.getLatLng()
+			const distance = 0.18
+			const createLine = (deg) => {
+				if (isNaN(deg)) return []
+				const rad = deg * Math.PI / 180
+				const dLat = distance * Math.cos(rad)
+				const dLng = distance * Math.sin(rad) / Math.cos(center.lat * Math.PI / 180)
+				return [[center.lat, center.lng], [center.lat + dLat, center.lng + dLng]]
+			}
+			const line1 = createLine(degMotor3)
+			const line2 = createLine(degMotor4)
+			arrowRed2.setLatLngs(line1)
+			arrowBlue2.setLatLngs(line2)
+			if (syncEnabled2) {
+				outlineYellow2_1.setLatLngs([])
+				outlineYellow2_2.setLatLngs([])
+			} else {
+				outlineYellow2_1.setLatLngs(activeMotor2 === 0 ? line1 : [])
+				outlineYellow2_2.setLatLngs(activeMotor2 === 1 ? line2 : [])
+			}
+		}
+
+		// ====================== ЗАГАЛЬНІ ФУНКЦІЇ ======================
 		function tryLogin() {
 			const user = document.getElementById('username').value.trim()
 			const pass = document.getElementById('password').value.trim()
@@ -454,273 +924,55 @@
 			if (!user || !pass) { errorEl.textContent = 'Введіть дані пристрою'; return }
 			if (!mqttUser || !mqttPass) { errorEl.textContent = 'Введіть MQTT username та password'; return }
 
-			errorEl.textContent = 'Підключення до сервера...'
+			errorEl.textContent = 'Підключення до MQTT серверів...'
+			connectMQTT1(mqttUser, mqttPass)
+			connectMQTT2(mqttUser, mqttPass)
 
-			connectMQTT(mqttUser, mqttPass)
-
-			setTimeout(() => {
-				if (mqttConnected) {
-					errorEl.textContent = 'Авторизація пристрою...'
-					const payload = JSON.stringify({
-						username: user,
-						password: pass,
-						clientId: CLIENT_ID
-					})
-					mqttClient.publish('Werden/auth/request', payload)
-				}
-			}, 2000)
+			// зберігаємо для наступних входів
+			localStorage.setItem('savedUsername', user)
+			localStorage.setItem('savedPassword', pass)
+			localStorage.setItem('savedMqttUser', mqttUser)
+			localStorage.setItem('savedMqttPass', mqttPass)
 		}
-
-		function sendCommand(cmdT, cmdA = 0, cmdB = 0) {
-			if (!authToken || !mqttConnected) {
-				alert('Спочатку авторизуйтесь та підключіться')
-				return
-			}
-			const cmdI = (cmdT === 99 || cmdT === 10) ? 0 : activeMotor
-			const payload = JSON.stringify({ token: authToken, cmdT, cmdI, cmdA, cmdB, board: BOARD })
-			mqttClient.publish('Werden/command', payload)
-		}
-
-		function switchMotor(index) {
-			pendingSwitch = true
-			activeMotor = index
-			lastSingleActiveMotor = index
-			sendCommand(10, index)
-			highlightActiveMotor()
-			updateActiveInput()
-			updateMap2()
-			setTimeout(() => { pendingSwitch = false }, 1200)
-		}
-
-		function highlightActiveMotor() {
-			const btn3 = document.getElementById('motor3Btn')
-			const btn4 = document.getElementById('motor4Btn')
-			if (syncEnabled) {
-				btn3.classList.remove('active')
-				btn4.classList.remove('active')
-			} else {
-				btn3.classList.toggle('active', activeMotor === 0)
-				btn4.classList.toggle('active', activeMotor === 1)
-			}
-		}
-
-		// NEW: Highlight active input field
-		function updateActiveInput() {
-			const input3 = document.getElementById('degreeInput3')
-			const input4 = document.getElementById('degreeInput4')
-
-			if (syncEnabled) {
-				input3.classList.add('active')
-				input4.classList.add('active')
-			} else {
-				input3.classList.toggle('active', activeMotor === 0)
-				input4.classList.toggle('active', activeMotor === 1)
-			}
-		}
-
-		function toggleSync() {
-			pendingSync = true
-
-			if (!syncEnabled) {
-				lastSingleActiveMotor = activeMotor
-			}
-
-			syncEnabled = !syncEnabled
-
-			if (!syncEnabled) {
-				activeMotor = lastSingleActiveMotor
-			}
-
-			const btn = document.getElementById('sync2Btn')
-			btn.textContent = syncEnabled ? "Sync ON" : "Sync OFF"
-			btn.style.background = syncEnabled ? "#4caf50" : "#0288d1"
-			sendCommand(99, syncEnabled ? 1 : 0)
-			highlightActiveMotor()
-			updateActiveInput()
-			updateMap2()
-
-			setTimeout(() => { pendingSync = false }, 1200)
-		}
-
-		function startMove(cmdT) {
-			const currentDeg = activeMotor === 0 ? degMotor3 : degMotor4
-
-			if (cmdT === 5 && currentDeg >= 77) return
-			if (cmdT === 6 && currentDeg <= -77) return
-
-			sendCommand(cmdT, 0)
-		}
-
-		function stopMove() {
-			sendCommand(2, 0)
-		}
-
-		// NEW: Send degree from specific input (shared for both)
-		function sendDegreeFromInput(inputEl) {
-			let deg = parseFloat(inputEl.value)
-			if (isNaN(deg)) return
-
-			const motorIndex = parseInt(inputEl.dataset.motor)
-			const raw = Math.round(2047 + (deg * 4095 / 360))
-
-			// Optimistic update
-			if (motorIndex === 0) degMotor3 = deg
-			else degMotor4 = deg
-
-			updateMap2()
-			sendCommand(22, raw)
-
-			inputEl.value = '' // Clear after send
-		}
-
-		// NEW: Enter key support + clear
-		document.getElementById('degreeInput3').addEventListener('keypress', function (e) {
-			if (e.key === 'Enter') {
-				sendDegreeFromInput(this)
-			}
-		})
-
-		document.getElementById('degreeInput4').addEventListener('keypress', function (e) {
-			if (e.key === 'Enter') {
-				sendDegreeFromInput(this)
-			}
-		})
-
-
-		function setNewMiddle() {
-			// Send calibration command using cmdT=11 (as you confirmed)
-			// cmdI = current active motor index
-			// cmdA and cmdB = 0 (not needed for calibration)
-			sendCommand(11, 0)  // cmdT=11 triggers setMiddle() in firmware
-
-			// Optimistic reset: current position is now 0°
-			degMotor3 = 0
-			degMotor4 = 0
-
-			// Update UI positions immediately
-			document.getElementById("current-pos-motor3").textContent = `Лівий: 0°`
-			document.getElementById("current-pos-motor4").textContent = `Правий: 0°`
-
-			// Reset slider to visual middle
-			document.getElementById("position-slider2").value = 2047
-
-			// Reset map2 arrows to straight forward (0° direction)
-			updateMap2()
-
-			// Visual feedback (orange button flashes green briefly)
-			const btn = document.getElementById('setMiddleBtn2')
-			const originalBg = btn.style.background
-			btn.style.background = '#4caf50'
-			setTimeout(() => { btn.style.background = originalBg }, 500)
-		}
-
-		document.getElementById('position-slider2').addEventListener('input', function () {
-			let newPos = parseInt(this.value)
-			let deg = Math.round((newPos - 2047) * 360 / 4095)
-			deg = Math.max(-77, Math.min(77, deg))
-			newPos = Math.round(2047 + (deg * 4095 / 360))
-			this.value = newPos
-			degMotor3 = deg
-			degMotor4 = deg
-			document.getElementById("current-pos-motor3").textContent = `Лівий: ${deg}°`
-			document.getElementById("current-pos-motor4").textContent = `Правий: ${deg}°`
-			updateMap2()
-			sendCommand(22, newPos)
-		})
 
 		function logout() {
-			localStorage.removeItem('servoAuthToken')
-			localStorage.removeItem('mqttUser')
-			localStorage.removeItem('mqttPass')
+			localStorage.removeItem('servoAuthToken1')
+			localStorage.removeItem('servoAuthToken2')
+			localStorage.removeItem('savedUsername')
+			localStorage.removeItem('savedPassword')
+			localStorage.removeItem('savedMqttUser')
+			localStorage.removeItem('savedMqttPass')
 			location.reload()
 		}
 
-		function initMap2() {
-			map2 = L.map('map2').setView([48.904339, 37.605560], 10)
-			L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
-				attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetmap</a> contributors, SRTM | © <a href="https://opentopomap.org">OpenTopomap</a> (CC-BY-SA)',
-				maxZoom: 17
-			}).addTo(map2)
-
-			marker2 = L.marker([48.904339, 37.605560]).addTo(map2)
-				.bindPopup('Польовик').openPopup()
-
-			outlineYellow3 = L.polyline([], { color: '#ffff00', weight: 14, opacity: 0.5 }).addTo(map2)
-			outlineYellow4 = L.polyline([], { color: '#ffff00', weight: 14, opacity: 0.5 }).addTo(map2)
-
-			arrowRed2 = L.polyline([], { color: 'red', weight: 8, opacity: 0.95 }).addTo(map2)
-			arrowBlue2 = L.polyline([], { color: '#00aaff', weight: 6, opacity: 0.75, dashArray: '8, 8' }).addTo(map2)
-
-			updateMap2()
-		}
-
-		function updateMap2() {
-			if (!map2 || !marker2) return
-			const center = marker2.getLatLng()
-			const distance = 0.18
-
-			const createLine = (deg) => {
-				if (isNaN(deg)) return []
-				const rad = deg * Math.PI / 180
-				const dLat = distance * Math.cos(rad)
-				const dLng = distance * Math.sin(rad) / Math.cos(center.lat * Math.PI / 180)
-				return [[center.lat, center.lng], [center.lat + dLat, center.lng + dLng]]
-			}
-
-			arrowRed2.setLatLngs(createLine(degMotor3))
-			arrowBlue2.setLatLngs(createLine(degMotor4))
-
-			if (syncEnabled) {
-				outlineYellow3.setLatLngs([])
-				outlineYellow4.setLatLngs([])
-			} else {
-				outlineYellow3.setLatLngs(activeMotor === 0 ? createLine(degMotor3) : [])
-				outlineYellow4.setLatLngs(activeMotor === 1 ? createLine(degMotor4) : [])
-			}
-		}
-
 		window.onload = function () {
-			document.getElementById("position-slider2").value = 2047
-
+			initMap1()
 			initMap2()
-			highlightActiveMotor()
-			updateActiveInput()
-
-			// FIX: Force map2 redraw after init (in case content was hidden)
-			setTimeout(() => {
-				if (map2) {
-					map2.invalidateSize()
-				}
-			}, 300)
 
 			const savedUsername = localStorage.getItem('savedUsername')
 			const savedPassword = localStorage.getItem('savedPassword')
 			const savedMqttUser = localStorage.getItem('savedMqttUser')
 			const savedMqttPass = localStorage.getItem('savedMqttPass')
-			const savedAuthToken = localStorage.getItem('servoAuthToken')
-
 			if (savedUsername) document.getElementById('username').value = savedUsername
 			if (savedPassword) document.getElementById('password').value = savedPassword
 			if (savedMqttUser) document.getElementById('mqttUser').value = savedMqttUser
 			if (savedMqttPass) document.getElementById('mqttPass').value = savedMqttPass
 
-			// const savedMqttUser = localStorage.getItem('mqttUser')
-			// const savedMqttPass = localStorage.getItem('mqttPass')
 			if (savedMqttUser && savedMqttPass) {
-				connectMQTT(savedMqttUser, savedMqttPass)
-				if (authToken) {
-					document.getElementById('loginScreen').style.display = 'none'
-					document.getElementById('mainContent').style.display = 'block'
-
-					// FIX: Force map2 redraw AFTER main content is visible
-					setTimeout(() => {
-						if (map2) {
-							map2.invalidateSize()
-						}
-					}, 100)
-				}
+				connectMQTT1(savedMqttUser, savedMqttPass)
+				connectMQTT2(savedMqttUser, savedMqttPass)
 			}
-		};
+
+			highlightActiveMotor1()
+			highlightActiveMotor2()
+			updateActiveInput1()
+			updateActiveInput2()
+
+			setTimeout(() => {
+				if (map1) map1.invalidateSize()
+				if (map2) map2.invalidateSize()
+			}, 800)
+		}
 	</script>
 </body>
 
