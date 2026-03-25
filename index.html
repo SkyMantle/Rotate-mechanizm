@@ -2,7 +2,7 @@
 <html>
 
 <head>
-	<title>Польовик – Керування двома механізмами</title>
+	<title>Залізний Капут</title>
 	<meta charset="UTF-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1">
 	<link rel="icon" href="data:,">
@@ -56,20 +56,28 @@
 
 		.tab {
 			display: flex;
-			background: #111;
-			margin-bottom: 15px;
-			border-bottom: 3px solid #4247b7;
+			margin-bottom: 1px;
+			justify-content: space-between;
+			flex-direction: row;
+			align-items: center;
+			margin: 0 auto;
+			width: fit-content;
+			gap: 20px;
+
 		}
 
 		.tab button {
 			flex: 1;
-			padding: 18px;
+			padding: 4px;
 			background: #4247b7;
 			color: white;
 			border: none;
 			cursor: pointer;
-			font-size: 18px;
-			font-weight: bold;
+			font-size: 12px;
+			display: flex;
+			align-items: center;
+			justify-content: space-between;
+			flex-direction: row;
 		}
 
 		.tab button.active {
@@ -90,7 +98,7 @@
 			flex-wrap: wrap;
 			justify-content: center;
 			gap: 12px;
-			margin: 20px 0;
+			margin: 5px 0;
 		}
 
 		.motorSelectContainer,
@@ -185,16 +193,20 @@
 		.STSInfoContainer {
 			display: flex;
 			flex-direction: row;
-			justify-content: space-around;
+			justify-content: center;
 			flex-wrap: wrap;
+			gap: 15px;
+			align-items: center;
+			width: fit-content;
+			margin: 0 auto;
 		}
 
 		.STSValue {
-			max-width: 48%;
+			max-width: 23%;
 			height: 70px;
-			font-size: 16px;
+			font-size: 12px;
 			text-align: center;
-			margin: 10px 0;
+			margin: 2px 0;
 			padding: 10px;
 			background: #111;
 			border-radius: 8px;
@@ -476,7 +488,7 @@
 				console.log('✅ MQTT1 connected')
 				updateConnectionStatus()
 				mqttClient1.subscribe('Werden/auth/response/' + CLIENT_ID1)
-				mqttClient1.subscribe('Werden/status')
+				mqttClient1.subscribe('Werden/status/1')
 
 				const user = document.getElementById('username').value.trim()
 				const pass = document.getElementById('password').value.trim()
@@ -497,7 +509,9 @@
 				username: mqttUser,
 				password: mqttPass,
 				clean: true,
-				reconnectPeriod: 5000
+				reconnectPeriod: 5000,
+				keepalive: 30,
+				connectTimeout: 10000
 			})
 
 			mqttClient2.on('connect', () => {
@@ -506,7 +520,7 @@
 				console.log('✅ MQTT2 connected')
 				updateConnectionStatus()
 				mqttClient2.subscribe('Werden/auth/response/' + CLIENT_ID2)
-				mqttClient2.subscribe('Werden/status')
+				mqttClient2.subscribe('Werden/status/2')
 
 				const user = document.getElementById('username').value.trim()
 				const pass = document.getElementById('password').value.trim()
@@ -521,6 +535,12 @@
 				updateConnectionStatus()
 			})
 			mqttClient2.on('error', () => {
+				mqttConnected2 = false
+				lastStatusTime2 = 0
+				updateConnectionStatus()
+			})
+
+			mqttClient2.on('close', () => {
 				mqttConnected2 = false
 				lastStatusTime2 = 0
 				updateConnectionStatus()
@@ -544,10 +564,13 @@
 				return
 			}
 
-			if (topic === 'Werden/status') {
+			if (topic === 'Werden/status/1') {
 				try {
 					const data = JSON.parse(payload)
-					if (data.board && data.board !== BOARD1) return
+					if (!data || !data.board || data.board !== BOARD1) {
+						console.log(`🚫 MQTT1 отримав чужий статус (board=${data ? data.board : 'undefined'}), ігноруємо`)
+						return
+					}
 
 					console.log('📡 Отримано статус від Board 1')
 					lastStatusTime1 = Date.now()
@@ -589,15 +612,23 @@
 						localStorage.setItem('servoAuthToken2', authToken2)
 						document.getElementById('loginError').innerHTML += '<br>✅ Система 2 авторизована'
 						checkLoginComplete()
+						lastStatusTime1 = 0
+						lastStatusTime2 = 0
+						updateConnectionStatus()
 					}
 				} catch (e) { console.error('Auth2 parse error', e) }
 				return
 			}
 
-			if (topic === 'Werden/status') {
+			if (topic === 'Werden/status/2') {
 				try {
 					const data = JSON.parse(payload)
-					if (data.board && data.board !== BOARD2) return
+					if (!data || !data.board || data.board !== BOARD2) {
+						console.log(`🚫 MQTT2 отримав чужий статус (board=${data ? data.board : 'undefined'}), ігноруємо`)
+						return   // ← важливо!
+					}
+
+
 
 					console.log('📡 Отримано статус від Board 2')
 					lastStatusTime2 = Date.now()
@@ -654,6 +685,9 @@
 					if (map1) map1.invalidateSize()
 					if (map2) map2.invalidateSize()
 				}, 200)
+				lastStatusTime1 = 0
+				lastStatusTime2 = 0
+				updateConnectionStatus()
 			}
 		}
 
