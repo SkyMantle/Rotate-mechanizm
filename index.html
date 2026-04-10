@@ -479,7 +479,9 @@
 				username: mqttUser,
 				password: mqttPass,
 				clean: true,
-				reconnectPeriod: 5000
+				reconnectPeriod: 5000,
+				keepalive: 30,
+				connectTimeout: 15000
 			})
 
 			mqttClient1.on('connect', () => {
@@ -508,9 +510,9 @@
 				username: mqttUser,
 				password: mqttPass,
 				clean: true,
-				reconnectPeriod: 5000,
+				reconnectPeriod: 4000,
 				keepalive: 30,
-				connectTimeout: 10000
+				connectTimeout: 15000
 			})
 
 			mqttClient2.on('connect', () => {
