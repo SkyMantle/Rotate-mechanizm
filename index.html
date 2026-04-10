@@ -677,7 +677,7 @@
 		// ====================== ПЕРЕХІД У ПАНЕЛЬ ======================
 		function checkLoginComplete() {
 			if (authToken1 || authToken2) {
-				console.log('🎉 Панель відкрито (System 1 =', !!authToken1, ', System 2 =', !!authToken2, ')')
+				console.log('🎉 Панель відкрито')
 				document.getElementById('loginScreen').style.display = 'none'
 				document.getElementById('mainContent').style.display = 'block'
 				setTimeout(() => {
