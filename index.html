@@ -668,7 +668,7 @@
 		}
 
 		function sendCommand2(cmdT, cmdA = 0, cmdB = 0) {
-			if (!authToken2 || !mqttConnected2) { alert('Система 2 не авторизована або не підключена'); return }
+			if (!authToken2 || !mqttConnected2) { console.warn('Система 2 не авторизована або не підключена'); return }
 			const cmdI = (cmdT === 99 || cmdT === 10) ? 0 : activeMotor2
 			const payload = JSON.stringify({ token: authToken2, cmdT, cmdI, cmdA, cmdB, board: BOARD2 })
 			mqttClient2.publish('Werden/command', payload)
@@ -677,7 +677,7 @@
 		// ====================== ПЕРЕХІД У ПАНЕЛЬ ======================
 		function checkLoginComplete() {
 			if (authToken1 || authToken2) {
-				console.log('🎉 Панель відкрито')
+				console.log('🎉 Панель відкрито (System 1 =', !!authToken1, ', System 2 =', !!authToken2, ')')
 				document.getElementById('loginScreen').style.display = 'none'
 				document.getElementById('mainContent').style.display = 'block'
 				setTimeout(() => {
