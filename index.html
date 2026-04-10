@@ -998,7 +998,7 @@
 		// ====================== КЕРУВАННЯ КЛАВІАТУРОЮ ======================
 		document.addEventListener('keydown', function (e) {
 
-			// TAB — перемикання між системами
+			// === TAB — перемикання систем ===
 			if (e.key === 'Tab') {
 				const isSys1 = document.getElementById('System1').classList.contains('active')
 
@@ -1007,26 +1007,28 @@
 				} else {
 					openSystem({ currentTarget: document.querySelector('button[onclick*="System1"]') }, 'System1')
 				}
-
 				document.activeElement.blur()
 				e.preventDefault()
 				return
 			}
 
+			// === Перевіряємо, чи користувач зараз у полях логіну ===
+			const isLoginField = ['username', 'password', 'mqttUser', 'mqttPass'].includes(document.activeElement.id)
+
 			const sys1Active = document.getElementById('System1').classList.contains('active')
 			const sys2Active = document.getElementById('System2').classList.contains('active')
 
-			// ====================== КОМАНДИ, ЯКІ ПРАЦЮЮТЬ НАВІТЬ ПРИ ФОКУСІ В ПОЛІ ======================
+			// ====================== КОМАНДИ, ЯКІ ПРАЦЮЮТЬ НАВІТЬ ПРИ ФОКУСІ ======================
 
-			// Синхронізація (S / і) — працює завжди
-			if (e.key === 's' || e.key === 'S' || e.key === 'і' || e.key === 'І') {
+			// Синхронізація (S / і) — працює тільки якщо НЕ в полях логіну
+			if ((e.key === 's' || e.key === 'S' || e.key === 'і' || e.key === 'І') && !isLoginField) {
 				if (sys1Active) toggleSync1()
 				if (sys2Active) toggleSync2()
-				e.preventDefault()        // щоб не вводилась літера в поле
+				e.preventDefault()
 				return
 			}
 
-			// Перемикання моторів (працює завжди)
+			// Перемикання моторів (працює завжди, навіть при фокусі в полі)
 			const isLeftMotorKey = (e.key === 'й' || e.key === 'Й' || e.key.toLowerCase() === 'q') && !e.altKey
 			const isRightMotorKey = (e.key === 'й' || e.key === 'Й' || e.key.toLowerCase() === 'q') && e.altKey
 
@@ -1054,20 +1056,21 @@
 				return
 			}
 
-			// ====================== КОМАНДИ, ЯКІ ПРАЦЮЮТЬ ТІЛЬКИ БЕЗ ФОКУСУ ======================
-			const hasFocus = document.activeElement.tagName === "INPUT" &&
-				document.activeElement.type !== "range"
+			// ====================== КОМАНДИ, ЯКІ ПРАЦЮЮТЬ ТІЛЬКИ БЕЗ ФОКУСУ В ПОЛІ ======================
+			if (isLoginField) return   // ← найважливіше: не блокуємо нічого в полях логіну
 
-			if (hasFocus) return   // блокуємо решту клавіш, якщо фокус у полі
+			const hasFocusOnAzimuth = document.activeElement.classList.contains('azimuth-input')
+
+			if (hasFocusOnAzimuth) return   // блокуємо решту клавіш тільки в полях градусів
 
 			switch (e.key) {
 
-				case 'ArrowLeft':     // Швидкість -
+				case 'ArrowLeft':
 					if (sys1Active) sendCommand1(8, activeMotor1)
 					if (sys2Active) sendCommand2(8, activeMotor2)
 					break
 
-				case 'ArrowRight':    // Швидкість +
+				case 'ArrowRight':
 					if (sys1Active) sendCommand1(7, activeMotor1)
 					if (sys2Active) sendCommand2(7, activeMotor2)
 					break
