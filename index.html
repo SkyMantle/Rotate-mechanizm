@@ -661,7 +661,7 @@
 
 		// ====================== КОМАНДИ ======================
 		function sendCommand1(cmdT, cmdA = 0, cmdB = 0) {
-			if (!authToken1 || !mqttConnected1) { alert('Система 1 не авторизована або не підключена'); return }
+			if (!authToken1 || !mqttConnected1) { console.warn('Система 1 не авторизована або не підключена'); return }
 			const cmdI = (cmdT === 99 || cmdT === 10) ? 0 : activeMotor1
 			const payload = JSON.stringify({ token: authToken1, cmdT, cmdI, cmdA, cmdB, board: BOARD1 })
 			mqttClient1.publish('Werden/command', payload)
