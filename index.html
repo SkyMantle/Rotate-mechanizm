@@ -496,6 +496,9 @@
 				if (user && pass) {
 					mqttClient1.publish('Werden/auth/request', JSON.stringify({ username: user, password: pass, clientId: CLIENT_ID1 }))
 				}
+				setTimeout(() => {
+					if (authToken1) checkLoginComplete()
+				}, 800)
 			})
 
 			mqttClient1.on('offline', () => { mqttConnected1 = false; updateConnectionStatus() })
