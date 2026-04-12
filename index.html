@@ -355,11 +355,11 @@
 			<div
 				style="margin:2px 0; text-align:center; display:flex; flex-direction:row; justify-content: space-around; align-items:center; flex-wrap: nowrap; gap:20px;">
 				<div class="azimuth-group">
-					<input type="number" id="degreeInput1" min="-70" max="70" step="0.1" placeholder="градуси"
+					<input type="number" id="degreeInput1" min="-77" max="77" step="0.1" placeholder="градуси"
 						class="azimuth-input" data-motor="0">
 				</div>
 				<div class="azimuth-group">
-					<input type="number" id="degreeInput2" min="-70" max="70" step="0.1" placeholder="градуси"
+					<input type="number" id="degreeInput2" min="-77" max="77" step="0.1" placeholder="градуси"
 						class="azimuth-input" data-motor="1">
 				</div>
 			</div>
@@ -757,6 +757,7 @@
 		function sendDegreeFromInput1(inputEl) {
 			let deg = parseFloat(inputEl.value)
 			if (isNaN(deg)) return
+			deg = Math.max(-77, Math.min(77, deg))
 			const motorIndex = parseInt(inputEl.dataset.motor)
 			const raw = Math.round(2047 + (deg * 4095 / 360))
 			if (motorIndex === 0) degMotor1 = deg; else degMotor2 = deg
@@ -769,7 +770,7 @@
 		document.getElementById('position-slider').addEventListener('input', function () {
 			let newPos = parseInt(this.value)
 			let deg = Math.round((newPos - 2047) * 360 / 4095)
-			deg = Math.max(-70, Math.min(70, deg))
+			deg = Math.max(-77, Math.min(77, deg))
 			newPos = Math.round(2047 + (deg * 4095 / 360))
 			this.value = newPos
 			degMotor1 = deg; degMotor2 = deg
@@ -841,6 +842,7 @@
 		function sendDegreeFromInput2(inputEl) {
 			let deg = parseFloat(inputEl.value)
 			if (isNaN(deg)) return
+			deg = Math.max(-77, Math.min(77, deg))
 			const motorIndex = parseInt(inputEl.dataset.motor)
 			const raw = Math.round(2047 + (deg * 4095 / 360))
 			if (motorIndex === 0) degMotor3 = deg; else degMotor4 = deg
@@ -867,7 +869,7 @@
 		function initMap1() {
 			map1 = L.map('map').setView([48.904339, 37.605560], 10)
 			L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap contributors, SRTM | © OpenTopoMap (CC-BY-SA)' }).addTo(map1)
-			marker1 = L.marker([48.904339, 37.605560]).addTo(map1).bindPopup('Польовик 1').openPopup()
+			marker1 = L.marker([49.206075, 37.486161]).addTo(map1).bindPopup('Залізо').openPopup()
 			outlineYellow1_1 = L.polyline([], { color: '#ffff00', weight: 14, opacity: 0.5 }).addTo(map1)
 			outlineYellow1_2 = L.polyline([], { color: '#ffff00', weight: 14, opacity: 0.5 }).addTo(map1)
 			arrowRed1 = L.polyline([], { color: 'red', weight: 8, opacity: 0.95 }).addTo(map1)
@@ -876,19 +878,30 @@
 		}
 		function updateMap1() {
 			if (!map1 || !marker1) return
+
+			const VISUAL_OFFSET = 110  // ← тут змінюєш кут (зараз 95°)
+
 			const center = marker1.getLatLng()
 			const distance = 0.18
-			const createLine = (deg) => {
-				if (isNaN(deg)) return []
-				const rad = deg * Math.PI / 180
+
+			const createLine = (realDeg) => {
+				if (isNaN(realDeg)) return []
+
+				const visualDeg = realDeg + VISUAL_OFFSET   // тільки для малювання на карті
+				const rad = visualDeg * Math.PI / 180
+
 				const dLat = distance * Math.cos(rad)
 				const dLng = distance * Math.sin(rad) / Math.cos(center.lat * Math.PI / 180)
+
 				return [[center.lat, center.lng], [center.lat + dLat, center.lng + dLng]]
 			}
+
 			const line1 = createLine(degMotor1)
 			const line2 = createLine(degMotor2)
+
 			arrowRed1.setLatLngs(line1)
 			arrowBlue1.setLatLngs(line2)
+
 			if (syncEnabled1) {
 				outlineYellow1_1.setLatLngs([])
 				outlineYellow1_2.setLatLngs([])
