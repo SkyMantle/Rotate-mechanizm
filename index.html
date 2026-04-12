@@ -214,7 +214,7 @@
 
 		#map,
 		#map2 {
-			height: 320px;
+			height: 500px;
 			border: 2px solid #4247b7;
 			border-radius: 10px;
 			margin-top: 25px;
@@ -337,9 +337,9 @@
 					<button id="syncBtn" onclick="toggleSync1()">Sync OFF</button>
 				</div>
 				<div class="motorControlContainer">
-					<!-- <button id="setMiddleBtn1" onclick="setNewMiddle1()">Set New 0°</button>
+					<button id="setMiddleBtn1" onclick="setNewMiddle1()">Set New 0°</button>
 					<button onclick="sendCommand1(3, activeMotor1)">Release</button>
-					<button onclick="sendCommand1(4, activeMotor1)">Torque</button> -->
+					<button onclick="sendCommand1(4, activeMotor1)">Torque</button>
 					<button onclick="sendCommand1(1, activeMotor1)">0°</button>
 					<button onclick="sendCommand1(7, activeMotor1)">+</button>
 					<button onclick="sendCommand1(8, activeMotor1)">-</button>
@@ -866,10 +866,111 @@
 		})
 
 		// ====================== КАРТИ ======================
+		let azimuthRingGroup = null
+
+		function createAzimuthRing(map, centerLatLng, baseRadiusKm = 0.6) {
+			if (azimuthRingGroup) {
+				map.removeLayer(azimuthRingGroup)
+			}
+			azimuthRingGroup = L.layerGroup().addTo(map)
+
+			const radiusMeters = baseRadiusKm * 1000
+			const zoom = map.getZoom()
+
+			// Сильна динаміка відстані (щоб на віддаленні цифри не влипали)
+			const baseOffset = 240
+			const zoomOffset = Math.max(0, (18 - zoom) * 85)   // дуже агресивно
+			const textDist = radiusMeters + baseOffset + zoomOffset
+
+			// Основне кільце
+			L.circle(centerLatLng, {
+				radius: radiusMeters,
+				color: "#ffffff",
+				weight: 2.5,
+				opacity: 0.65,
+				fill: false,
+				interactive: false
+			}).addTo(azimuthRingGroup)
+
+			for (let angle = 0; angle < 360; angle += 5) {
+				const isMain = (angle % 30 === 0)
+				const innerDist = radiusMeters - (isMain ? 45 : 25)
+				const outerDist = radiusMeters + (isMain ? 35 : 22)
+
+				const innerPoint = calculateOffsetPoint(centerLatLng, innerDist, angle)
+				const outerPoint = calculateOffsetPoint(centerLatLng, outerDist, angle)
+
+				L.polyline([innerPoint, outerPoint], {
+					color: isMain ? "#ffff00" : "#bbbbbb",
+					weight: isMain ? 4 : 2,
+					opacity: isMain ? 0.95 : 0.75,
+					interactive: false
+				}).addTo(azimuthRingGroup)
+
+				// === ЦИФРИ ЧЕРЕЗ SVG (замість divIcon) ===
+				if (isMain) {
+					const textPoint = calculateOffsetPoint(centerLatLng, textDist, angle)
+
+					let rotation = angle
+					if (angle > 90 && angle < 270) rotation += 180
+
+					// Динамічний розмір шрифту (ще агресивніше зменшується)
+					let fontSize = zoom >= 17 ? 17 :
+						zoom >= 15 ? 14 :
+							zoom >= 13 ? 11 :
+								zoom >= 11 ? 9 : 7
+
+					const svgSize = 90   // розмір SVG-іконки
+
+					const svgHtml = `
+        <svg width="${svgSize}" height="${svgSize}" viewBox="0 0 ${svgSize} ${svgSize}" xmlns="http://www.w3.org/2000/svg">
+          <text x="50%" y="52%" text-anchor="middle" dominant-baseline="middle" 
+                fill="#ffff00" font-size="${fontSize}" font-weight="700" 
+                transform="rotate(${rotation} 45 45)" 
+                style="paint-order: stroke fill; stroke:#000000; stroke-width:4px; stroke-linejoin:round;">
+            ${angle}°
+          </text>
+        </svg>`
+
+					L.marker(textPoint, {
+						icon: L.divIcon({
+							className: 'azimuth-label-svg',   // можна додати стиль якщо треба
+							html: svgHtml,
+							iconSize: [svgSize, svgSize],
+							iconAnchor: [svgSize / 2, svgSize / 2]
+						}),
+						interactive: false
+					}).addTo(azimuthRingGroup)
+				}
+			}
+		}
+		// Допоміжна функція для розрахунку точки на відстані та куті
+		function calculateOffsetPoint(center, distanceMeters, bearingDegrees) {
+			const R = 6371000 // радіус Землі в метрах
+			const d = distanceMeters / R // кутова відстань в радіанах
+			const bearing = bearingDegrees * Math.PI / 180
+
+			const lat1 = center.lat * Math.PI / 180
+			const lon1 = center.lng * Math.PI / 180
+
+			const lat2 = Math.asin(Math.sin(lat1) * Math.cos(d) +
+				Math.cos(lat1) * Math.sin(d) * Math.cos(bearing))
+
+			const lon2 = lon1 + Math.atan2(Math.sin(bearing) * Math.sin(d) * Math.cos(lat1),
+				Math.cos(d) - Math.sin(lat1) * Math.sin(lat2))
+
+			return [lat2 * 180 / Math.PI, lon2 * 180 / Math.PI]
+		}
+		// Автоматичне оновлення при зумі
+
 		function initMap1() {
 			map1 = L.map('map').setView([48.904339, 37.605560], 10)
 			L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap contributors, SRTM | © OpenTopoMap (CC-BY-SA)' }).addTo(map1)
 			marker1 = L.marker([49.206075, 37.486161]).addTo(map1).bindPopup('Залізо').openPopup()
+			createAzimuthRing(map1, marker1.getLatLng(), 7.5)
+			map1.on('zoomend', () => {
+				createAzimuthRing(map1, marker1.getLatLng(), 7.5)
+			})
 			outlineYellow1_1 = L.polyline([], { color: '#ffff00', weight: 14, opacity: 0.5 }).addTo(map1)
 			outlineYellow1_2 = L.polyline([], { color: '#ffff00', weight: 14, opacity: 0.5 }).addTo(map1)
 			arrowRed1 = L.polyline([], { color: 'red', weight: 8, opacity: 0.95 }).addTo(map1)
@@ -975,6 +1076,35 @@
 			location.reload()
 		}
 
+		// Жорстке обмеження азимутів [-77 … +77] в реальному часі
+		function restrictAzimuthInput(input) {
+			if (!input) return
+
+			// Обмеження при кожному введенні символу
+			input.addEventListener('input', function () {
+				let val = this.value.trim()
+
+				// Дозволяємо тимчасово "-" і десяткову крапку/кому
+				if (val === '' || val === '-' || val === '.' || val === ',') return
+
+				let num = parseFloat(val.replace(',', '.'))
+
+				if (!isNaN(num)) {
+					if (num > 77) this.value = '77'
+					else if (num < -77) this.value = '-77'
+				}
+			})
+
+			// Додаткове обмеження при втраті фокусу (на випадок вставки з буфера)
+			input.addEventListener('blur', function () {
+				let num = parseFloat(this.value)
+				if (!isNaN(num)) {
+					num = Math.max(-77, Math.min(77, num))
+					this.value = num   // автоматично округлює до потрібної точності
+				}
+			})
+		}
+
 		window.onload = function () {
 			initMap1()
 			initMap2()
@@ -992,6 +1122,12 @@
 				connectMQTT1(savedMqttUser, savedMqttPass)
 				connectMQTT2(savedMqttUser, savedMqttPass)
 			}
+
+			// Жорсткі обмеження на всі поля азимутів
+			restrictAzimuthInput(document.getElementById('degreeInput1'))
+			restrictAzimuthInput(document.getElementById('degreeInput2'))
+			restrictAzimuthInput(document.getElementById('degreeInput3'))
+			restrictAzimuthInput(document.getElementById('degreeInput4'))
 
 			highlightActiveMotor1()
 			highlightActiveMotor2()
